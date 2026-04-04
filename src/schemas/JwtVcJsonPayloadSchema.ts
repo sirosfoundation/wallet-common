@@ -17,9 +17,9 @@ export const JwtVcJsonPayloadSchema = z.object({
 	jti: z.string().optional(),
 	vc: z.object({
 		"@context": z.array(z.string()).optional(),
-		type: z.array(z.string()),
+		type: z.array(z.string()).min(1),
 		credentialSubject: z.record(z.any()).optional(),
-	}).passthrough().optional(),
+	}).passthrough(),
 	cnf: z.object({
 		jwk: z.record(z.any()).optional(),
 	}).optional(),

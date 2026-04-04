@@ -28,6 +28,13 @@ export function JWTVCJSONVerifier(args: { context: Context, pkResolverEngine: Pu
 			) {
 				return false;
 			}
+
+			// Require vc claim with type array to distinguish from generic JWTs
+			const payload = JSON.parse(decoder.decode(fromBase64Url(parts[1])));
+			if (!payload.vc || !Array.isArray(payload.vc.type) || payload.vc.type.length === 0) {
+				return false;
+			}
+
 			return true;
 		} catch {
 			return false;
@@ -64,7 +71,7 @@ export function JWTVCJSONVerifier(args: { context: Context, pkResolverEngine: Pu
 		return { success: false, error: CredentialVerificationError.CannotExtractHolderPublicKey };
 	};
 
-	const verifyIssuerSignature = async (rawCredential: string): Promise<CustomResult<{}, CredentialVerificationError>> => {
+	const verifyIssuerSignature = async (rawCredential: string, opts?: { expectedAudience?: string, expectedNonce?: string }): Promise<CustomResult<{}, CredentialVerificationError>> => {
 		const parts = rawCredential.split(".");
 		let header;
 		try {
@@ -144,14 +151,25 @@ export function JWTVCJSONVerifier(args: { context: Context, pkResolverEngine: Pu
 		try {
 			await jwtVerify(rawCredential, issuerPublicKeyResult.value, {
 				clockTolerance: args.context.clockTolerance,
+				audience: opts?.expectedAudience,
 			});
 		} catch (err: unknown) {
 			if (err instanceof Error && err.name === "JWTExpired") {
 				logError(CredentialVerificationError.ExpiredCredential, `Credential is expired: ${err}`);
 				return { success: false, error: CredentialVerificationError.ExpiredCredential };
 			}
+			if (err instanceof Error && err.name === "JWTClaimValidationFailed" && err.message.includes("aud")) {
+				logError(CredentialVerificationError.InvalidAudience, `Audience validation failed: ${err}`);
+				return { success: false, error: CredentialVerificationError.InvalidAudience };
+			}
 			logError(CredentialVerificationError.InvalidSignature, `Issuer signature verification failed: ${err}`);
 			return { success: false, error: CredentialVerificationError.InvalidSignature };
+		}
+
+		// Verify nonce if expected (stored in the JWT payload nonce claim)
+		if (opts?.expectedNonce && payload.nonce !== opts.expectedNonce) {
+			logError(CredentialVerificationError.InvalidNonce, `Nonce mismatch: expected ${opts.expectedNonce}, got ${payload.nonce}`);
+			return { success: false, error: CredentialVerificationError.InvalidNonce };
 		}
 
 		return { success: true, value: {} };
@@ -168,7 +186,10 @@ export function JWTVCJSONVerifier(args: { context: Context, pkResolverEngine: Pu
 				};
 			}
 
-			const issuerSignatureResult = await verifyIssuerSignature(rawCredential);
+			const issuerSignatureResult = await verifyIssuerSignature(rawCredential, {
+				expectedAudience: opts?.expectedAudience,
+				expectedNonce: opts?.expectedNonce,
+			});
 			if (!issuerSignatureResult.success) {
 				return {
 					success: false,
@@ -178,7 +199,10 @@ export function JWTVCJSONVerifier(args: { context: Context, pkResolverEngine: Pu
 
 			const publicKeyResult = await getHolderPublicKey(rawCredential);
 			if (!publicKeyResult.success) {
-				// Holder binding is optional for jwt_vc_json — return success with empty holderPublicKey
+				// Holder binding is optional for jwt_vc_json.
+				// Return success with an empty JWK object to signal "no holder binding".
+				// Note: This is not a real JWK but indicates the credential has no cnf claim.
+				// Callers should check for empty object when holder binding is required.
 				return {
 					success: true,
 					value: {

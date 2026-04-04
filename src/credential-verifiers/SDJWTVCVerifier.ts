@@ -36,7 +36,7 @@ export function SDJWTVCVerifier(args: { context: Context, pkResolverEngine: Publ
 	const parse = async (rawCredential: string) => {
 		try {
 			const credential = await SDJwt.fromEncode(rawCredential, hasherAndAlgorithm.hasher);
-			const parsedSdJwtWithPrettyClaims = await (await SDJwt.fromEncode(rawCredential, hasherAndAlgorithm.hasher)).getClaims<ParsedSdJwtVcWithPrettyClaims>(hasherAndAlgorithm.hasher);
+			const parsedSdJwtWithPrettyClaims = await credential.getClaims<ParsedSdJwtVcWithPrettyClaims>(hasherAndAlgorithm.hasher);
 			return { credential, parsedSdJwtWithPrettyClaims };
 		}
 		catch (err) {

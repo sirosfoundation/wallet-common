@@ -2,6 +2,7 @@ export enum CredentialParsingError {
 	UnsupportedFormat = "UnsupportedFormat",
 	CouldNotParse = "CouldNotParse",
 	InvalidSdJwtVcPayload = "InvalidSdJwtVcPayload",
+	InvalidJwtVcJsonPayload = "InvalidJwtVcJsonPayload",
 	InvalidDatatype = "InvalidDatatype",
 	NotSupportedCredentialType = "NotSupportedCredentialType",
 	InfiniteRecursion = "InfiniteRecursion",
@@ -60,6 +61,8 @@ export enum CredentialVerificationError {
 
 
 	InvalidSignature = "InvalidSignature",
+	InvalidAudience = "InvalidAudience",
+	InvalidNonce = "InvalidNonce",
 	CannotResolveIssuerPublicKey = "CannotResolveIssuerPublicKey",
 	CannotImportIssuerPublicKey = "CannotImportIssuerPublicKey",
 	NotTrustedIssuer = "NotTrustedIssuer",

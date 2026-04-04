@@ -414,9 +414,12 @@ export class OpenID4VPClientAPI {
 					if (output.credential_format === VerifiableCredentialFormat.JWT_VC_JSON) {
 						const requestedAll = descriptor?.claims == null;
 						const vcClaims = (signedClaims.vc as Record<string, unknown>)?.credentialSubject as Record<string, unknown> | undefined;
+						// When specific claims are requested, use the filtered claims from DCQL output
+						// Otherwise, return all claims from the credential subject
+						const filteredClaims = (output.claims as Record<string, unknown>) ?? {};
 						const source: Record<string, unknown> = requestedAll
 							? (vcClaims ?? signedClaims)
-							: (vcClaims ?? signedClaims);
+							: filteredClaims;
 
 						presentationClaims[descriptor.id] = Object.entries(source).map(([key, value]) => ({
 							key,

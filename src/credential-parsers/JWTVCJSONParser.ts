@@ -30,6 +30,13 @@ export function JWTVCJSONParser(args: { context: Context, httpClient: HttpClient
 			) {
 				return false;
 			}
+
+			// Require vc claim with type array to distinguish from generic JWTs
+			const payload = JSON.parse(decoder.decode(fromBase64Url(parts[1])));
+			if (!payload.vc || !Array.isArray(payload.vc.type) || payload.vc.type.length === 0) {
+				return false;
+			}
+
 			return true;
 		} catch {
 			return false;
@@ -90,7 +97,7 @@ export function JWTVCJSONParser(args: { context: Context, httpClient: HttpClient
 			if (!payloadResult.success) {
 				return {
 					success: false,
-					error: CredentialParsingError.InvalidSdJwtVcPayload,
+					error: CredentialParsingError.InvalidJwtVcJsonPayload,
 				};
 			}
 
