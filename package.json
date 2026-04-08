@@ -14,6 +14,9 @@
 		"build": "rm -rf dist/ && tsc",
 		"prepare": "npm run build"
 	},
+	"engines": {
+		"node": ">=22.0.0"
+	},
 	"dependencies": {
 		"@auth0/mdl": "^2.2.0",
 		"@sd-jwt/core": "^0.10.0",
