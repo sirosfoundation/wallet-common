@@ -6,8 +6,16 @@ export const CredentialOfferSchema = z.object({
 	grants: z.object({
 		"authorization_code": z.object({
 			"issuer_state": z.string().optional()
-		}).optional()
-	})
+		}).optional(),
+		"urn:ietf:params:oauth:grant-type:pre-authorized_code": z.object({
+			"pre-authorized_code": z.string(),
+			"tx_code": z.object({
+				"input_mode": z.string().optional(),
+				"length": z.number().optional(),
+				"description": z.string().optional(),
+			}).optional(),
+		}).optional(),
+	}).passthrough()
 })
 
 export type CredentialOffer = z.infer<typeof CredentialOfferSchema>;
