@@ -135,9 +135,7 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 			client_metadata: searchParams.get("client_metadata")
 				? JSON.parse(searchParams.get("client_metadata") as string)
 				: null,
-			response_mode: searchParams.get("response_mode")
-				? JSON.parse(searchParams.get("response_mode") as string)
-				: null,
+			response_mode: searchParams.get("response_mode") ?? null,
 			transaction_data: searchParams.get("transaction_data")
 				? JSON.parse(searchParams.get("transaction_data") as string)
 				: null,
@@ -611,7 +609,7 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 					response_uri = `https://${response_uri}`;
 				}
 				client_metadata = payload.client_metadata as OpenID4VPClientMetadata;
-				response_mode = payload.response_mode ?? response_mode;
+				response_mode = (payload.response_mode as string) ?? response_mode;
 				if (payload.transaction_data) {
 					transaction_data = payload.transaction_data as string[];
 					if (this.deps.parseTransactionData) {
@@ -709,6 +707,7 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 			response_uri: S.response_uri,
 			client_id: S.client_id,
 			state: S.state,
+			response_mode: S.response_mode,
 		};
 	}
 }
