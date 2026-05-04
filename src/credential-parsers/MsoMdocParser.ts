@@ -16,27 +16,30 @@ type IssuerMetadata = z.infer<typeof OpenidCredentialIssuerMetadataSchema>;
 
 export function MsoMdocParser(args: { context: Context, httpClient: HttpClient }): CredentialParser {
 
-	function canParseMsoMdoc(raw: unknown): raw is string {
-		if (typeof raw !== "string") return false;
+	function looksLikeTopLevelCborMap(bytes: Uint8Array): boolean {
+		if (bytes.length === 0) return false;
+
+		const first = bytes[0];
+
+		// CBOR major type 5 = map.
+		// Definite maps: 0xA0..0xBB
+		// Indefinite map: 0xBF
+		// 0xBC..0xBE are reserved/invalid.
+		return (
+			(first >= 0xA0 && first <= 0xBB) ||
+			first === 0xBF
+		);
+	}
+
+	function isBase64UrlTopLevelCborMap(raw: string): boolean {
+		let bytes: Uint8Array;
 
 		try {
-			const bytes = fromBase64Url(raw);
-			const decoded = cborDecode<unknown>(bytes);
-			const hasTopLevelKey = (input: unknown, key: string): boolean => {
-				if (input instanceof Map) return input.has(key);
-				if (typeof input === "object" && input !== null) return key in input;
-				return false;
-			};
-
-			return (
-				(hasTopLevelKey(decoded, "version") && hasTopLevelKey(decoded, "status")) ||
-				hasTopLevelKey(decoded, "issuerAuth") ||
-				hasTopLevelKey(decoded, "nameSpaces") ||
-				hasTopLevelKey(decoded, "issuerNamespaces")
-			);
+			bytes = fromBase64Url(raw);
 		} catch {
 			return false;
 		}
+		return looksLikeTopLevelCborMap(bytes);
 	}
 
 	function extractValidityInfo(issuerSigned: IssuerSigned): { validUntil?: Date, validFrom?: Date, signed?: Date } {
@@ -197,7 +200,14 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient }
 
 	return {
 		async parse({ rawCredential, credentialIssuer }) {
-			if (!canParseMsoMdoc(rawCredential)) {
+			if (typeof rawCredential !== "string") {
+				return {
+					success: false,
+					error: CredentialParsingError.UnsupportedFormat,
+				};
+			}
+
+			if (!isBase64UrlTopLevelCborMap(rawCredential)) {
 				return {
 					success: false,
 					error: CredentialParsingError.UnsupportedFormat,
