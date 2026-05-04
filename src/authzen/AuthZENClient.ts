@@ -220,6 +220,13 @@ export function AuthZENClient(config: AuthZENClientConfig): IAuthZENClient {
 			metadata: response.context?.trust_metadata,
 		};
 
+		// Propagate validated flag from context or reason
+		if (response.context?.validated === true) {
+			info.validated = true;
+		} else if (response.context?.reason?.validated === true) {
+			info.validated = true;
+		}
+
 		// Try to extract name from metadata
 		const metadata = response.context?.trust_metadata;
 		if (metadata && typeof metadata === 'object') {

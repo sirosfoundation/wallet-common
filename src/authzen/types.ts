@@ -36,8 +36,9 @@ export interface AuthZENResource {
 	 * - "x5c": X.509 certificate chain (base64-encoded DER)
 	 * - "x509_san_dns": X.509 with SAN DNS name validation
 	 * - "resolution": Resolution-only request (no key validation)
+	 * - "credential_issuer": Issuer metadata resolution via OpenID4VCI well-known
 	 */
-	type: 'jwk' | 'x5c' | 'x509_san_dns' | 'resolution' | string;
+	type: 'jwk' | 'x5c' | 'x509_san_dns' | 'resolution' | 'credential_issuer' | string;
 
 	/**
 	 * Identifier matching the subject.id.
@@ -117,9 +118,17 @@ export interface AuthZENEvaluationResponseContext {
 	 * Trust metadata returned by the PDP. This can be:
 	 * - A DID Document (for did: subjects)
 	 * - An OIDF Entity Configuration (for https:// subjects)
+	 * - Issuer metadata (for credential_issuer resolution)
 	 * - Certificate chain information (for x5c resources)
 	 */
 	trust_metadata?: Record<string, unknown>;
+
+	/**
+	 * Whether the metadata was cryptographically validated (e.g. signed_metadata
+	 * JWT verified, or application/jwt response verified with a trusted key).
+	 * Set by the issuer-url registry when resolving credential issuer metadata.
+	 */
+	validated?: boolean;
 }
 
 /**
@@ -236,6 +245,12 @@ export interface TrustInfo {
 	 * Trust metadata (DID doc, entity config, etc.).
 	 */
 	metadata?: unknown;
+
+	/**
+	 * Whether the metadata was cryptographically validated (e.g. signed JWT
+	 * verified). Propagated from the PDP response context or reason.
+	 */
+	validated?: boolean;
 
 	/**
 	 * Error if trust evaluation failed.
