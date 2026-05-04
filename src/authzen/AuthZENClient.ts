@@ -136,8 +136,11 @@ export interface IAuthZENClient {
 
 	/**
 	 * Resolve metadata for a subject (DID document, entity config, etc.).
+	 *
+	 * @param subjectId - The subject identifier (DID, URL, etc.)
+	 * @param options - Optional subject_type and resource_type hints
 	 */
-	resolve(subjectId: string): Promise<Result<AuthZENEvaluationResponse, AuthZENError>>;
+	resolve(subjectId: string, options?: { subjectType?: string; resourceType?: string }): Promise<Result<AuthZENEvaluationResponse, AuthZENError>>;
 
 	/**
 	 * Evaluate a verifier's trust status.
@@ -270,10 +273,14 @@ export function AuthZENClient(config: AuthZENClientConfig): IAuthZENClient {
 			}
 		},
 
-		async resolve(subjectId: string): Promise<Result<AuthZENEvaluationResponse, AuthZENError>> {
+		async resolve(subjectId: string, options?: { subjectType?: string; resourceType?: string }): Promise<Result<AuthZENEvaluationResponse, AuthZENError>> {
 			try {
 				const headers = await buildHeaders();
-				const request: AuthZENResolveRequest = { subject_id: subjectId };
+				const request: AuthZENResolveRequest = {
+					subject_id: subjectId,
+					...(options?.subjectType && { subject_type: options.subjectType }),
+					...(options?.resourceType && { resource_type: options.resourceType }),
+				};
 				const response = await httpClient.post(
 					`${normalizedBaseUrl}/v1/resolve`,
 					request,

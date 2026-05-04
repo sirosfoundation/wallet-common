@@ -145,6 +145,17 @@ export interface AuthZENResolveRequest {
 	 * Subject ID to resolve (DID, URL, etc.).
 	 */
 	subject_id: string;
+
+	/**
+	 * Subject type hint (e.g. "key", "url"). Defaults to "key" on the backend.
+	 */
+	subject_type?: string;
+
+	/**
+	 * Resource type for the resolution (e.g. "credential_issuer", "openid_provider").
+	 * Determines which well-known metadata endpoint to query for URL subjects.
+	 */
+	resource_type?: string;
 }
 
 /**
