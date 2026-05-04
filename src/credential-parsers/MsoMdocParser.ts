@@ -16,7 +16,15 @@ type IssuerMetadata = z.infer<typeof OpenidCredentialIssuerMetadataSchema>;
 
 export function MsoMdocParser(args: { context: Context, httpClient: HttpClient }): CredentialParser {
 
-	function looksLikeTopLevelCborMap(bytes: Uint8Array): boolean {
+	function looksLikeCborMap(raw: unknown): raw is string {
+		if (typeof raw !== "string") return false;
+
+		let bytes: Uint8Array;
+		try {
+			bytes = fromBase64Url(raw);
+		} catch {
+			return false;
+		}
 		if (bytes.length === 0) return false;
 
 		const first = bytes[0];
@@ -25,21 +33,7 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient }
 		// Definite maps: 0xA0..0xBB
 		// Indefinite map: 0xBF
 		// 0xBC..0xBE are reserved/invalid.
-		return (
-			(first >= 0xA0 && first <= 0xBB) ||
-			first === 0xBF
-		);
-	}
-
-	function isBase64UrlTopLevelCborMap(raw: string): boolean {
-		let bytes: Uint8Array;
-
-		try {
-			bytes = fromBase64Url(raw);
-		} catch {
-			return false;
-		}
-		return looksLikeTopLevelCborMap(bytes);
+		return (first >= 0xA0 && first <= 0xBB) || first === 0xBF;
 	}
 
 	function extractValidityInfo(issuerSigned: IssuerSigned): { validUntil?: Date, validFrom?: Date, signed?: Date } {
@@ -200,14 +194,7 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient }
 
 	return {
 		async parse({ rawCredential, credentialIssuer }) {
-			if (typeof rawCredential !== "string") {
-				return {
-					success: false,
-					error: CredentialParsingError.UnsupportedFormat,
-				};
-			}
-
-			if (!isBase64UrlTopLevelCborMap(rawCredential)) {
+			if (!looksLikeCborMap(rawCredential)) {
 				return {
 					success: false,
 					error: CredentialParsingError.UnsupportedFormat,
