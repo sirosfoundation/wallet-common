@@ -147,6 +147,68 @@ describe('AuthZENClient', () => {
 				expect(result.value.context?.trust_metadata?.type).toBe('did_document');
 			}
 		});
+
+		it('should pass subject_type and resource_type when provided', async () => {
+			const expectedResponse: AuthZENEvaluationResponse = {
+				decision: true,
+				context: {
+					resolved: true,
+					trust_metadata: {
+						credential_issuer: 'https://issuer.example.com',
+					},
+				},
+			};
+
+			const responses = new Map<string, HttpResponse>([
+				[`${baseUrl}/v1/resolve`, { status: 200, headers: {}, data: expectedResponse }],
+			]);
+
+			const mockHttpClient = createMockHttpClient(responses);
+			const client = createClient(mockHttpClient);
+
+			const result = await client.resolve('https://issuer.example.com', {
+				subjectType: 'url',
+				resourceType: 'credential_issuer',
+			});
+
+			expect(result.ok).toBe(true);
+
+			// Verify the request body includes subject_type and resource_type
+			expect(mockHttpClient.post).toHaveBeenCalledWith(
+				`${baseUrl}/v1/resolve`,
+				{
+					subject_id: 'https://issuer.example.com',
+					subject_type: 'url',
+					resource_type: 'credential_issuer',
+				},
+				expect.any(Object),
+				expect.any(Object),
+			);
+		});
+
+		it('should not include subject_type/resource_type when not provided', async () => {
+			const expectedResponse: AuthZENEvaluationResponse = {
+				decision: true,
+				context: { resolved: true },
+			};
+
+			const responses = new Map<string, HttpResponse>([
+				[`${baseUrl}/v1/resolve`, { status: 200, headers: {}, data: expectedResponse }],
+			]);
+
+			const mockHttpClient = createMockHttpClient(responses);
+			const client = createClient(mockHttpClient);
+
+			await client.resolve('did:web:example.com');
+
+			// Verify the request body only has subject_id
+			expect(mockHttpClient.post).toHaveBeenCalledWith(
+				`${baseUrl}/v1/resolve`,
+				{ subject_id: 'did:web:example.com' },
+				expect.any(Object),
+				expect.any(Object),
+			);
+		});
 	});
 
 	describe('evaluateVerifier', () => {
