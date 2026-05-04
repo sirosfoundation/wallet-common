@@ -314,6 +314,93 @@ describe('AuthZENClient', () => {
 				expect(result.value.name).toBe('Government Issuer');
 			}
 		});
+
+		it('should propagate validated from context.validated', async () => {
+			const expectedResponse: AuthZENEvaluationResponse = {
+				decision: true,
+				context: {
+					validated: true,
+					trust_metadata: {
+						credential_issuer: 'https://issuer.example.com',
+					},
+				},
+			};
+
+			const responses = new Map<string, HttpResponse>([
+				[`${baseUrl}/v1/evaluate`, { status: 200, headers: {}, data: expectedResponse }],
+			]);
+
+			const client = createClient(createMockHttpClient(responses));
+
+			const result = await client.evaluateIssuer({
+				issuerId: 'https://issuer.example.com',
+				keyMaterial: { type: 'jwk', key: {} },
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.value.validated).toBe(true);
+			}
+		});
+
+		it('should propagate validated from context.reason.validated', async () => {
+			const expectedResponse: AuthZENEvaluationResponse = {
+				decision: true,
+				context: {
+					reason: {
+						resolution_only: true,
+						validated: true,
+						cached: false,
+					},
+					trust_metadata: {
+						credential_issuer: 'https://issuer.example.com',
+					},
+				},
+			};
+
+			const responses = new Map<string, HttpResponse>([
+				[`${baseUrl}/v1/evaluate`, { status: 200, headers: {}, data: expectedResponse }],
+			]);
+
+			const client = createClient(createMockHttpClient(responses));
+
+			const result = await client.evaluateIssuer({
+				issuerId: 'https://issuer.example.com',
+				keyMaterial: { type: 'jwk', key: {} },
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.value.validated).toBe(true);
+			}
+		});
+
+		it('should not set validated when absent from response', async () => {
+			const expectedResponse: AuthZENEvaluationResponse = {
+				decision: true,
+				context: {
+					trust_metadata: {
+						credential_issuer: 'https://issuer.example.com',
+					},
+				},
+			};
+
+			const responses = new Map<string, HttpResponse>([
+				[`${baseUrl}/v1/evaluate`, { status: 200, headers: {}, data: expectedResponse }],
+			]);
+
+			const client = createClient(createMockHttpClient(responses));
+
+			const result = await client.evaluateIssuer({
+				issuerId: 'https://issuer.example.com',
+				keyMaterial: { type: 'jwk', key: {} },
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.value.validated).toBeUndefined();
+			}
+		});
 	});
 
 	describe('configuration', () => {
