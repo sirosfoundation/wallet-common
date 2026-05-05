@@ -10,6 +10,7 @@ import {
 	OpenID4VPServerRequestVerifier,
 	OpenID4VPServerMessages,
 	OpenID4VPResponseMode,
+	OpenID4VPJweEncryption,
 	TransactionDataResponseGenerator,
 	TransactionDataResponseGeneratorParams,
 	TransactionDataResponseParams
@@ -80,6 +81,7 @@ const encoder = new TextEncoder();
 const certFromB64 = (certBase64: string) =>
 	`-----BEGIN CERTIFICATE-----\n${certBase64.match(/.{1,64}/g)?.join("\n")}\n-----END CERTIFICATE-----`;
 const supportedClientIdSchemes = new Set(["x509_san_dns", "x509_hash"]);
+const supportedJweEncryptions = new Set<string>(Object.values(OpenID4VPJweEncryption));
 
 function decodeIssuerSignedCredential(credentialDataB64u: string): {
 	issuerSigned: IssuerSigned;
@@ -585,11 +587,22 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 		const formData = new URLSearchParams();
 
 		if ([OpenID4VPResponseMode.DIRECT_POST_JWT, OpenID4VPResponseMode.DC_API_JWT].includes(S.response_mode)) {
-			let jweEnc = "A128GCM"; // TODO: use enum from wallet-common if available
+			let jweEnc: string;
 			if (S.client_metadata.encrypted_response_enc_values_supported) {
-				jweEnc = S.client_metadata.encrypted_response_enc_values_supported[0]; // TODO: check if supported by EncyptJWE first
+				const firstSupportedEnc = S.client_metadata.encrypted_response_enc_values_supported.find(
+					(enc) => supportedJweEncryptions.has(enc));
+				if (!firstSupportedEnc) {
+					throw new Error("Could not find supported algorithm in encrypted_response_enc_values_supported");
+				}
+				jweEnc = firstSupportedEnc;
+			} else {
+				jweEnc = OpenID4VPJweEncryption.A128GCM;
 			}
 			const { rp_eph_pub_jwk, alg } = await retrieveKeys(S, this.deps.httpClient);
+<<<<<<< update/replace-mdoc-lib
+=======
+
+>>>>>>> master
 			const rp_eph_pub = await importJWK(rp_eph_pub_jwk, alg);
 
 			const jwePayload = {
