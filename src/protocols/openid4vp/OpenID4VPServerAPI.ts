@@ -599,10 +599,6 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 				jweEnc = OpenID4VPJweEncryption.A128GCM;
 			}
 			const { rp_eph_pub_jwk, alg } = await retrieveKeys(S, this.deps.httpClient);
-<<<<<<< update/replace-mdoc-lib
-=======
-
->>>>>>> master
 			const rp_eph_pub = await importJWK(rp_eph_pub_jwk, alg);
 
 			const jwePayload = {
