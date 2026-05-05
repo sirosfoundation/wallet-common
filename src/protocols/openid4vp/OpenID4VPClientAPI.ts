@@ -265,6 +265,7 @@ export class OpenID4VPClientAPI {
 			presentation_during_issuance_session: null,
 
 			date_created: Date.now(),
+			response_mode: responseMode,
 			};
 
 		await this.saveRPState(sessionId, newRpState);
@@ -404,15 +405,22 @@ export class OpenID4VPClientAPI {
 					}
 				} else {
 					// ========== mdoc ==========
+					const verifierEncryptionJwk = rpState.rp_eph_pub;
+					const expectedHolderNonce = rpState.apu_jarm_encrypted_response_header
+						? decoder.decode(fromBase64Url(rpState.apu_jarm_encrypted_response_header))
+						: undefined;
 					const verificationResult = await ce.msoMdocVerifier.verify({
 						rawCredential: vp,
 						opts: {
 							expectedAudience: rpState.audience,
 							expectedNonce: rpState.nonce,
-							holderNonce: rpState.apu_jarm_encrypted_response_header
-								? decoder.decode(fromBase64Url(rpState.apu_jarm_encrypted_response_header))
-								: undefined,
+							holderNonce: expectedHolderNonce,
 							responseUri: this.options.redirectUri,
+							verifierEncryptionJwk,
+							handoverType: rpState.response_mode === OpenID4VPResponseMode.DC_API_JWT && rpState.audience.startsWith("origin:") ? "dc_api" : "redirect",
+							dcApiOrigin: rpState.response_mode === OpenID4VPResponseMode.DC_API_JWT && rpState.audience.startsWith("origin:")
+								? rpState.audience.replace(/^origin:/, "")
+								: undefined,
 						},
 					});
 					if (!verificationResult.success) {
