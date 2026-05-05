@@ -11,6 +11,7 @@ import {
 	OpenID4VPServerRequestVerifier,
 	OpenID4VPServerMessages,
 	OpenID4VPResponseMode,
+	OpenID4VPJweEncryption,
 	TransactionDataResponseGenerator,
 	TransactionDataResponseGeneratorParams,
 	TransactionDataResponseParams
@@ -78,6 +79,7 @@ const encoder = new TextEncoder();
 const certFromB64 = (certBase64: string) =>
 	`-----BEGIN CERTIFICATE-----\n${certBase64.match(/.{1,64}/g)?.join("\n")}\n-----END CERTIFICATE-----`;
 const supportedClientIdSchemes = new Set(["x509_san_dns", "x509_hash"]);
+const supportedJweEncryptions = new Set<string>(Object.values(OpenID4VPJweEncryption));
 
 function isOpenID4VPResponseMode(value: unknown): value is OpenID4VPResponseMode {
 	return typeof value === "string" && Object.values(OpenID4VPResponseMode).includes(value as OpenID4VPResponseMode);
@@ -114,13 +116,16 @@ async function calculateX509HashFromLeafCert(leafCertBase64: string, subtle?: Su
 	return base64url.encode(new Uint8Array(digest));
 }
 
-const retrieveKeys = async (S: OpenID4VPRelyingPartyState, httpClient: { get: (url: string, options?: Record<string, unknown>) => Promise<{ data: unknown }> }) => {
+export const retrieveKeys = async (S: OpenID4VPRelyingPartyState, httpClient: { get: (url: string, options?: Record<string, unknown>) => Promise<{ data: unknown }> }) => {
 	if (S.client_metadata.jwks) {
 		const rp_eph_pub_jwk = S.client_metadata.jwks.keys.filter((k) => k.use === "enc")[0];
 		if (!rp_eph_pub_jwk) {
 			throw new Error("Could not find Relying Party public key for encryption");
 		}
-		return { rp_eph_pub_jwk };
+		if (!rp_eph_pub_jwk.alg) {
+			throw new Error("alg is required in verifier's JWK");
+		}
+		return { rp_eph_pub_jwk, alg: rp_eph_pub_jwk.alg };
 	}
 	if (S.client_metadata.jwks_uri) {
 		const response = await httpClient.get(S.client_metadata.jwks_uri).catch(() => null);
@@ -130,7 +135,10 @@ const retrieveKeys = async (S: OpenID4VPRelyingPartyState, httpClient: { get: (u
 			if (!rp_eph_pub_jwk) {
 				throw new Error("Could not find Relying Party public key for encryption");
 			}
-			return { rp_eph_pub_jwk };
+			if (!rp_eph_pub_jwk.alg) {
+				throw new Error("alg is required in verifier's JWK");
+			}
+			return { rp_eph_pub_jwk, alg: rp_eph_pub_jwk.alg };
 		}
 	}
 	throw new Error("Could not find Relying Party public key for encryption");
@@ -555,12 +563,21 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 
 		const formData = new URLSearchParams();
 
-		if ([OpenID4VPResponseMode.DIRECT_POST_JWT, OpenID4VPResponseMode.DC_API_JWT].includes(S.response_mode) && S.client_metadata.authorization_encrypted_response_alg) {
-			if (!S.client_metadata.authorization_encrypted_response_enc) {
-				throw new Error("Missing authorization_encrypted_response_enc");
+		if ([OpenID4VPResponseMode.DIRECT_POST_JWT, OpenID4VPResponseMode.DC_API_JWT].includes(S.response_mode)) {
+			let jweEnc: string;
+			if (S.client_metadata.encrypted_response_enc_values_supported) {
+				const firstSupportedEnc = S.client_metadata.encrypted_response_enc_values_supported.find(
+					(enc) => supportedJweEncryptions.has(enc));
+				if (!firstSupportedEnc) {
+					throw new Error("Could not find supported algorithm in encrypted_response_enc_values_supported");
+				}
+				jweEnc = firstSupportedEnc;
+			} else {
+				jweEnc = OpenID4VPJweEncryption.A128GCM;
 			}
-			const { rp_eph_pub_jwk } = await retrieveKeys(S, this.deps.httpClient);
-			const rp_eph_pub = await importJWK(rp_eph_pub_jwk, S.client_metadata.authorization_encrypted_response_alg);
+			const { rp_eph_pub_jwk, alg } = await retrieveKeys(S, this.deps.httpClient);
+
+			const rp_eph_pub = await importJWK(rp_eph_pub_jwk, alg);
 
 			const jwePayload = {
 				vp_token: vpTokenObject,
@@ -570,8 +587,8 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 			const jwe = await new EncryptJWT(jwePayload)
 				.setKeyManagementParameters({ apu: new TextEncoder().encode(apu), apv: new TextEncoder().encode(apv) })
 				.setProtectedHeader({
-					alg: S.client_metadata.authorization_encrypted_response_alg,
-					enc: S.client_metadata.authorization_encrypted_response_enc,
+					alg: alg,
+					enc: jweEnc,
 					kid: rp_eph_pub_jwk.kid,
 				})
 				.encrypt(rp_eph_pub);
