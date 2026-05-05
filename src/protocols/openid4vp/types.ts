@@ -81,6 +81,12 @@ export enum OpenID4VPResponseMode {
 	DC_API_JWT = "dc_api.jwt",
 }
 
+export enum OpenID4VPJweEncryption {
+	A128GCM = "A128GCM",
+	A192GCM = "A192GCM",
+	A256GCM = "A256GCM",
+}
+
 export type OpenID4VPClientIdScheme = "x509_san_dns" | "x509_hash";
 
 export type OpenID4VPClientMetadata = {
