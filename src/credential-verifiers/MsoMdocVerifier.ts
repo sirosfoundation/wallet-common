@@ -1,9 +1,9 @@
-import { exportJWK, importX509, type JWK } from "jose";
+import { calculateJwkThumbprint, exportJWK, importX509, type JWK } from "jose";
 import * as x509 from "@peculiar/x509";
 import { CredentialVerificationError } from "../error";
 import { Context, CredentialVerifier, PublicKeyResolverEngineI } from "../interfaces";
 import { fromBase64Url } from "../utils/util";
-import { DataItem, DeviceResponse, IssuerSigned, Verifier, cborEncode, type MdocContext, CoseKey } from "@owf/mdoc";
+import { DeviceResponse, IssuerSigned, Verifier, cborEncode, type MdocContext, CoseKey } from "@owf/mdoc";
 import { DigestHashAlgorithm } from "../types";
 import { p256, p384 } from '@noble/curves/nist.js';
 import { ed25519 } from '@noble/curves/ed25519.js';
@@ -130,29 +130,31 @@ export function MsoMdocVerifier(args: { context: Context, pkResolverEngine: Publ
 		},
 	};
 
-	const getSessionTranscriptBytesForOID4VPHandover = async (clId: string, respUri: string, nonce: string, mdocNonce: string) => cborEncode(
-		DataItem.fromData(
-			[
-				null,
-				null,
-				[
-					new Uint8Array(
-						await args.context.subtle.digest(
-							DigestHashAlgorithm.SHA_256,
-							cborEncode([clId, mdocNonce]),
-						)
-					),
-					new Uint8Array(
-						await args.context.subtle.digest(
-							DigestHashAlgorithm.SHA_256,
-							cborEncode([respUri, mdocNonce]),
-						)
-					),
-					nonce
-				]
-			]
-		)
-	);
+	const base64urlToBytes = (base64urlValue: string): Uint8Array => {
+		const base64 = base64urlValue.replace(/-/g, "+").replace(/_/g, "/");
+		const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+		const binary = atob(padded);
+		const bytes = new Uint8Array(binary.length);
+		for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+		return bytes;
+	};
+
+	const getSessionTranscriptBytesForOID4VPHandover = async (
+		clId: string,
+		respUri: string,
+		nonce: string,
+		verifierEncryptionJwk?: JWK
+	) => {
+		const thumbprintB64u = verifierEncryptionJwk
+			? await calculateJwkThumbprint(verifierEncryptionJwk, "sha256")
+			: null;
+		const jwkThumbprint = thumbprintB64u ? base64urlToBytes(thumbprintB64u) : null;
+		const handoverInfoBytes = cborEncode([clId, nonce, jwkThumbprint, respUri]);
+		const handoverInfoHash = new Uint8Array(
+			await args.context.subtle.digest(DigestHashAlgorithm.SHA_256, handoverInfoBytes)
+		);
+		return cborEncode([null, null, ["OpenID4VPHandover", handoverInfoHash]]);
+	};
 
 	async function expirationCheck(issuerSigned: IssuerSigned): Promise<null | CredentialVerificationError.ExpiredCredential> {
 		const { validUntil } = issuerSigned.issuerAuth.mobileSecurityObject.validityInfo;
@@ -223,6 +225,7 @@ export function MsoMdocVerifier(args: { context: Context, pkResolverEngine: Publ
 		expectedAudience?: string;
 		holderNonce?: string;
 		responseUri?: string;
+		verifierEncryptionJwk?: JWK;
 	}): Promise<{ holderPublicKeyJwk: JWK | null }> {
 		try {
 			const [parsedDocument] = deviceResponse.documents ?? [];
@@ -231,7 +234,7 @@ export function MsoMdocVerifier(args: { context: Context, pkResolverEngine: Publ
 			}
 
 			const isBoundPresentationCheck =
-				Boolean(opts.expectedAudience && opts.responseUri && opts.expectedNonce && opts.holderNonce);
+				Boolean(opts.expectedAudience && opts.responseUri && opts.expectedNonce);
 
 			if (isBoundPresentationCheck) {
 				const expiredResult = await expirationCheck(parsedDocument.issuerSigned);
@@ -265,7 +268,7 @@ export function MsoMdocVerifier(args: { context: Context, pkResolverEngine: Publ
 
 			const holderPublicKeyJwk = extractHolderPublicKeyJwk(parsedDocument.issuerSigned);
 
-			if (opts.expectedAudience && opts.responseUri && opts.expectedNonce && opts.holderNonce) {
+			if (opts.expectedAudience && opts.responseUri && opts.expectedNonce) {
 				const expectedAudiences = [opts.expectedAudience];
 				const schemeSeparatorIndex = opts.expectedAudience.indexOf(":");
 				if (schemeSeparatorIndex > 0 && schemeSeparatorIndex < opts.expectedAudience.length - 1) {
@@ -280,7 +283,7 @@ export function MsoMdocVerifier(args: { context: Context, pkResolverEngine: Publ
 							expectedAudienceCandidate,
 							opts.responseUri,
 							opts.expectedNonce,
-							opts.holderNonce
+							opts.verifierEncryptionJwk
 						);
 
 						await Verifier.verifyDeviceResponse(

@@ -42,7 +42,8 @@ type OpenID4VPServerKeystore = {
 		apu: string | undefined,
 		apv: string | undefined,
 		clientId: string,
-		responseUri: string
+		responseUri: string,
+		verifierEncryptionJwk?: JsonWebKey | Record<string, unknown>
 	): Promise<{ deviceResponseMDoc: any }>;
 };
 
@@ -399,6 +400,11 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 		const { dcql_query, client_id, nonce, response_uri, transaction_data } = S;
 		let apu = undefined;
 		let apv = undefined;
+		let verifierEncryptionJwk: JsonWebKey | Record<string, unknown> | undefined;
+		if (S.response_mode === OpenID4VPResponseMode.DIRECT_POST_JWT) {
+			const { rp_eph_pub_jwk } = await retrieveKeys(S, this.deps.httpClient);
+			verifierEncryptionJwk = rp_eph_pub_jwk as JsonWebKey | Record<string, unknown>;
+		}
 		const generatedVPs: string[] = [];
 		const originalVCs: CredentialT[] = [];
 
@@ -547,7 +553,8 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 					apu,
 					apv,
 					client_id,
-					response_uri
+					response_uri,
+					verifierEncryptionJwk
 				);
 				const encodedDeviceResponse = base64url.encode(deviceResponseMDoc.encode());
 
@@ -567,13 +574,12 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 
 		const formData = new URLSearchParams();
 
-		if ([OpenID4VPResponseMode.DIRECT_POST_JWT, OpenID4VPResponseMode.DC_API_JWT].includes(S.response_mode)) {
+		if (S.response_mode === OpenID4VPResponseMode.DIRECT_POST_JWT) {
 			let jweEnc = "A128GCM"; // TODO: use enum from wallet-common if available
 			if (S.client_metadata.encrypted_response_enc_values_supported) {
 				jweEnc = S.client_metadata.encrypted_response_enc_values_supported[0]; // TODO: check if supported by EncyptJWE first
 			}
 			const { rp_eph_pub_jwk, alg } = await retrieveKeys(S, this.deps.httpClient);
-			console.log("ALG=", alg);
 			const rp_eph_pub = await importJWK(rp_eph_pub_jwk, alg);
 
 			const jwePayload = {

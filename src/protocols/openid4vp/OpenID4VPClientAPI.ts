@@ -404,15 +404,18 @@ export class OpenID4VPClientAPI {
 					}
 				} else {
 					// ========== mdoc ==========
+					const verifierEncryptionJwk = rpState.rp_eph_pub;
+					const expectedHolderNonce = rpState.apu_jarm_encrypted_response_header
+						? decoder.decode(fromBase64Url(rpState.apu_jarm_encrypted_response_header))
+						: undefined;
 					const verificationResult = await ce.msoMdocVerifier.verify({
 						rawCredential: vp,
 						opts: {
 							expectedAudience: rpState.audience,
 							expectedNonce: rpState.nonce,
-							holderNonce: rpState.apu_jarm_encrypted_response_header
-								? decoder.decode(fromBase64Url(rpState.apu_jarm_encrypted_response_header))
-								: undefined,
+							holderNonce: expectedHolderNonce,
 							responseUri: this.options.redirectUri,
+							verifierEncryptionJwk,
 						},
 					});
 					if (!verificationResult.success) {
