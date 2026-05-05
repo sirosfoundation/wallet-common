@@ -564,12 +564,16 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 		const formData = new URLSearchParams();
 
 		if ([OpenID4VPResponseMode.DIRECT_POST_JWT, OpenID4VPResponseMode.DC_API_JWT].includes(S.response_mode)) {
-			let jweEnc: string = OpenID4VPJweEncryption.A128GCM;
+			let jweEnc: string;
 			if (S.client_metadata.encrypted_response_enc_values_supported) {
-				jweEnc =
-					S.client_metadata.encrypted_response_enc_values_supported.find((enc) =>
-						supportedJweEncryptions.has(enc)
-					) ?? jweEnc;
+				const firstSupportedEnc = S.client_metadata.encrypted_response_enc_values_supported.find(
+					(enc) => supportedJweEncryptions.has(enc));
+				if (!firstSupportedEnc) {
+					throw new Error("Could not find supported algorithm in encrypted_response_enc_values_supported");
+				}
+				jweEnc = firstSupportedEnc;
+			} else {
+				jweEnc = OpenID4VPJweEncryption.A128GCM;
 			}
 			const { rp_eph_pub_jwk, alg } = await retrieveKeys(S, this.deps.httpClient);
 

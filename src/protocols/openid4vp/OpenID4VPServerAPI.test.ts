@@ -477,7 +477,7 @@ describe("OpenID4VPServerAPI.handleAuthorizationRequest", () => {
 });
 
 describe("OpenID4VPServerAPI.createAuthorizationResponse", () => {
-	const createJwtResponse = async (encryptedResponseEncValuesSupported: string[]) => {
+	const createJwtResponse = async (encryptedResponseEncValuesSupported?: string[]) => {
 		const signedClaims = { vct: "urn:eudi:pid:1", given_name: "Alice" };
 		const sdJwtPid = await buildSdJwt(signedClaims);
 		const { publicKey } = await generateKeyPair("ECDH-ES");
@@ -494,7 +494,9 @@ describe("OpenID4VPServerAPI.createAuthorizationResponse", () => {
 					state: "state-jwe",
 					client_metadata: {
 						vp_formats: {},
-						encrypted_response_enc_values_supported: encryptedResponseEncValuesSupported,
+						...(encryptedResponseEncValuesSupported
+							? { encrypted_response_enc_values_supported: encryptedResponseEncValuesSupported }
+							: {}),
 						jwks: { keys: [{ ...jwk, use: "enc", alg: "ECDH-ES", kid: "kid-jwe" }] },
 					},
 					response_mode: OpenID4VPResponseMode.DIRECT_POST_JWT,
@@ -539,8 +541,18 @@ describe("OpenID4VPServerAPI.createAuthorizationResponse", () => {
 		assert(decodeJweProtectedHeader(jwe).enc === OpenID4VPJweEncryption.A256GCM);
 	});
 
-	it("falls back to A128GCM when verifier JWE enc values are unsupported", async () => {
-		const jwe = await createJwtResponse(["unsupported"]);
+	it("throws when verifier JWE enc values are provided but unsupported", async () => {
+		try {
+			await createJwtResponse(["unsupported"]);
+			assert.fail("Expected createAuthorizationResponse to throw for unsupported enc values");
+		} catch (error) {
+			assert(error instanceof Error);
+			assert(error.message.includes("Could not find supported algorithm in encrypted_response_enc_values_supported"));
+		}
+	});
+
+	it("falls back to A128GCM when verifier JWE enc values are not provided", async () => {
+		const jwe = await createJwtResponse();
 
 		assert(decodeJweProtectedHeader(jwe).enc === OpenID4VPJweEncryption.A128GCM);
 	});
