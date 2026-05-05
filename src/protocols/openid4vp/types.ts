@@ -51,6 +51,7 @@ export interface RPState {
 	presentation_during_issuance_session: string | null;
 
 	date_created: number;
+	response_mode?: OpenID4VPResponseMode;
 }
 
 export type CredentialEngineOptions = {
