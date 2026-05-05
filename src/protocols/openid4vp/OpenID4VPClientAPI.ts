@@ -265,6 +265,7 @@ export class OpenID4VPClientAPI {
 			presentation_during_issuance_session: null,
 
 			date_created: Date.now(),
+			response_mode: responseMode,
 			};
 
 		await this.saveRPState(sessionId, newRpState);
@@ -416,6 +417,10 @@ export class OpenID4VPClientAPI {
 							holderNonce: expectedHolderNonce,
 							responseUri: this.options.redirectUri,
 							verifierEncryptionJwk,
+							handoverType: rpState.response_mode === OpenID4VPResponseMode.DC_API_JWT && rpState.audience.startsWith("origin:") ? "dc_api" : "redirect",
+							dcApiOrigin: rpState.response_mode === OpenID4VPResponseMode.DC_API_JWT && rpState.audience.startsWith("origin:")
+								? rpState.audience.replace(/^origin:/, "")
+								: undefined,
 						},
 					});
 					if (!verificationResult.success) {

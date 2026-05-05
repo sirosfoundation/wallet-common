@@ -43,7 +43,9 @@ type OpenID4VPServerKeystore = {
 		apv: string | undefined,
 		clientId: string,
 		responseUri: string,
-		verifierEncryptionJwk?: JsonWebKey | Record<string, unknown>
+		verifierEncryptionJwk?: JsonWebKey | Record<string, unknown>,
+		handoverType?: "redirect" | "dc_api",
+		dcApiOrigin?: string
 	): Promise<{ deviceResponseMDoc: any }>;
 };
 
@@ -401,9 +403,15 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 		let apu = undefined;
 		let apv = undefined;
 		let verifierEncryptionJwk: JsonWebKey | Record<string, unknown> | undefined;
-		if (S.response_mode === OpenID4VPResponseMode.DIRECT_POST_JWT) {
+		let handoverType: "redirect" | "dc_api" = "redirect";
+		let dcApiOrigin: string | undefined;
+		if ([OpenID4VPResponseMode.DIRECT_POST_JWT, OpenID4VPResponseMode.DC_API_JWT].includes(S.response_mode)) {
 			const { rp_eph_pub_jwk } = await retrieveKeys(S, this.deps.httpClient);
 			verifierEncryptionJwk = rp_eph_pub_jwk as JsonWebKey | Record<string, unknown>;
+		}
+		if (S.response_mode === OpenID4VPResponseMode.DC_API_JWT) {
+			handoverType = "dc_api";
+			dcApiOrigin = S.client_id.replace(/^origin:/, "");
 		}
 		const generatedVPs: string[] = [];
 		const originalVCs: CredentialT[] = [];
@@ -554,7 +562,9 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 					apv,
 					client_id,
 					response_uri,
-					verifierEncryptionJwk
+					verifierEncryptionJwk,
+					handoverType,
+					dcApiOrigin
 				);
 				const encodedDeviceResponse = base64url.encode(deviceResponseMDoc.encode());
 
@@ -574,7 +584,7 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 
 		const formData = new URLSearchParams();
 
-		if (S.response_mode === OpenID4VPResponseMode.DIRECT_POST_JWT) {
+		if ([OpenID4VPResponseMode.DIRECT_POST_JWT, OpenID4VPResponseMode.DC_API_JWT].includes(S.response_mode)) {
 			let jweEnc = "A128GCM"; // TODO: use enum from wallet-common if available
 			if (S.client_metadata.encrypted_response_enc_values_supported) {
 				jweEnc = S.client_metadata.encrypted_response_enc_values_supported[0]; // TODO: check if supported by EncyptJWE first

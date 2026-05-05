@@ -1,10 +1,10 @@
-import { calculateJwkThumbprint, exportJWK, importX509, type JWK } from "jose";
+import { exportJWK, importX509, type JWK } from "jose";
 import * as x509 from "@peculiar/x509";
 import { CredentialVerificationError } from "../error";
 import { Context, CredentialVerifier, PublicKeyResolverEngineI } from "../interfaces";
 import { fromBase64Url } from "../utils/util";
-import { DeviceResponse, IssuerSigned, Verifier, cborEncode, type MdocContext, CoseKey } from "@owf/mdoc";
-import { DigestHashAlgorithm } from "../types";
+import { DeviceResponse, IssuerSigned, Verifier, type MdocContext, CoseKey } from "@owf/mdoc";
+import { buildOpenId4VpSessionTranscriptBytes } from "../protocols/openid4vp/sessionTranscript";
 import { p256, p384 } from '@noble/curves/nist.js';
 import { ed25519 } from '@noble/curves/ed25519.js';
 
@@ -130,32 +130,6 @@ export function MsoMdocVerifier(args: { context: Context, pkResolverEngine: Publ
 		},
 	};
 
-	const base64urlToBytes = (base64urlValue: string): Uint8Array => {
-		const base64 = base64urlValue.replace(/-/g, "+").replace(/_/g, "/");
-		const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
-		const binary = atob(padded);
-		const bytes = new Uint8Array(binary.length);
-		for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-		return bytes;
-	};
-
-	const getSessionTranscriptBytesForOID4VPHandover = async (
-		clId: string,
-		respUri: string,
-		nonce: string,
-		verifierEncryptionJwk?: JWK
-	) => {
-		const thumbprintB64u = verifierEncryptionJwk
-			? await calculateJwkThumbprint(verifierEncryptionJwk, "sha256")
-			: null;
-		const jwkThumbprint = thumbprintB64u ? base64urlToBytes(thumbprintB64u) : null;
-		const handoverInfoBytes = cborEncode([clId, nonce, jwkThumbprint, respUri]);
-		const handoverInfoHash = new Uint8Array(
-			await args.context.subtle.digest(DigestHashAlgorithm.SHA_256, handoverInfoBytes)
-		);
-		return cborEncode([null, null, ["OpenID4VPHandover", handoverInfoHash]]);
-	};
-
 	async function expirationCheck(issuerSigned: IssuerSigned): Promise<null | CredentialVerificationError.ExpiredCredential> {
 		const { validUntil } = issuerSigned.issuerAuth.mobileSecurityObject.validityInfo;
 		if (Math.floor(validUntil.getTime() / 1000) + args.context.clockTolerance < Math.floor(new Date().getTime() / 1000)) {
@@ -226,6 +200,8 @@ export function MsoMdocVerifier(args: { context: Context, pkResolverEngine: Publ
 		holderNonce?: string;
 		responseUri?: string;
 		verifierEncryptionJwk?: JWK;
+		handoverType?: "redirect" | "dc_api";
+		dcApiOrigin?: string;
 	}): Promise<{ holderPublicKeyJwk: JWK | null }> {
 		try {
 			const [parsedDocument] = deviceResponse.documents ?? [];
@@ -268,23 +244,37 @@ export function MsoMdocVerifier(args: { context: Context, pkResolverEngine: Publ
 
 			const holderPublicKeyJwk = extractHolderPublicKeyJwk(parsedDocument.issuerSigned);
 
-			if (opts.expectedAudience && opts.responseUri && opts.expectedNonce) {
-				const expectedAudiences = [opts.expectedAudience];
-				const schemeSeparatorIndex = opts.expectedAudience.indexOf(":");
-				if (schemeSeparatorIndex > 0 && schemeSeparatorIndex < opts.expectedAudience.length - 1) {
-					expectedAudiences.push(opts.expectedAudience.slice(schemeSeparatorIndex + 1));
+			if (opts.expectedNonce) {
+				const handoverType = opts.handoverType ?? "redirect";
+				const handoverClientIdInput = handoverType === "dc_api" ? opts.dcApiOrigin : opts.expectedAudience;
+				const handoverResponseUriInput = handoverType === "dc_api" ? "" : opts.responseUri;
+				if (!handoverClientIdInput || !handoverResponseUriInput && handoverType === "redirect") {
+					logError(CredentialVerificationError.MissingOpts, "Missing handover input for mdoc verification");
+					return { holderPublicKeyJwk: null };
+				}
+				const handoverClientId = handoverClientIdInput;
+				const handoverResponseUri = handoverType === "redirect" ? handoverResponseUriInput! : "";
+				const expectedAudiences = [handoverClientId];
+				if (handoverType === "redirect") {
+					const schemeSeparatorIndex = handoverClientId.indexOf(":");
+					if (schemeSeparatorIndex > 0 && schemeSeparatorIndex < handoverClientId.length - 1) {
+						expectedAudiences.push(handoverClientId.slice(schemeSeparatorIndex + 1));
+					}
 				}
 
 				let verified = false;
 				let lastError: unknown = null;
-				for (const expectedAudienceCandidate of expectedAudiences) {
+				for (const expectedAudienceCandidate of (handoverType === "redirect" ? expectedAudiences : [handoverClientId])) {
 					try {
-						const sessionTranscript = await getSessionTranscriptBytesForOID4VPHandover(
-							expectedAudienceCandidate,
-							opts.responseUri,
-							opts.expectedNonce,
-							opts.verifierEncryptionJwk
-						);
+						const sessionTranscript = await buildOpenId4VpSessionTranscriptBytes({
+							subtle: args.context.subtle,
+							handoverType,
+							clientId: handoverType === "redirect" ? expectedAudienceCandidate : undefined,
+							responseUri: handoverType === "redirect" ? handoverResponseUri : undefined,
+							dcApiOrigin: handoverType === "dc_api" ? handoverClientId : undefined,
+							nonce: opts.expectedNonce,
+							verifierEncryptionJwk: opts.verifierEncryptionJwk,
+						});
 
 						await Verifier.verifyDeviceResponse(
 							{
