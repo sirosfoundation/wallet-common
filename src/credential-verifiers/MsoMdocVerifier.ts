@@ -187,6 +187,7 @@ export function MsoMdocVerifier(args: { context: Context, pkResolverEngine: Publ
 
 	return {
 		async verify({ rawCredential, opts }) {
+			errors = []; // re-initialize error array
 			if (typeof rawCredential !== 'string') {
 				return {
 					success: false,
@@ -234,9 +235,6 @@ export function MsoMdocVerifier(args: { context: Context, pkResolverEngine: Publ
 					}
 				}
 			}
-
-			console.error(errors);
-
 
 			return {
 				success: false,
