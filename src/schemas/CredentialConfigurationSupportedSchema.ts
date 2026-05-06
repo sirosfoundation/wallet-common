@@ -3,16 +3,20 @@ import { VerifiableCredentialFormat } from '../types';
 
 const proofTypesSupportedSchema = z.object({
 	jwt: z.object({
-		proof_signing_alg_values_supported: z.array(z.string())
-	}).optional(),
+		proof_signing_alg_values_supported: z.array(z.string()),
+		key_attestations_required: z.object({
+			key_storage: z.array(z.enum(["iso_18045_high", "iso_18045_moderate", "iso_18045_enhanced-basic", "iso_18045_basic"])).optional(),
+			user_authentication: z.array(z.enum(["iso_18045_high", "iso_18045_moderate", "iso_18045_enhanced-basic", "iso_18045_basic"])).optional(),
+		}).optional(),
+	}).passthrough().optional(),
 	attestation: z.object({
 		proof_signing_alg_values_supported: z.array(z.string()),
 		key_attestations_required: z.object({
 			key_storage: z.array(z.enum(["iso_18045_high", "iso_18045_moderate", "iso_18045_enhanced-basic", "iso_18045_basic"])).optional(),
 			user_authentication: z.array(z.enum(["iso_18045_high", "iso_18045_moderate", "iso_18045_enhanced-basic", "iso_18045_basic"])).optional(),
-		})
-	}).optional(),
-});
+		}).optional(),
+	}).passthrough().optional(),
+}).passthrough();
 
 const OpenIdClaimSchema = z.object({
 	path: z.array(
@@ -50,7 +54,7 @@ const commonSchema = z.object({
 	cryptographic_binding_methods_supported: z.array(z.string()).optional(),
 	credential_signing_alg_values_supported: z.array(z.string()).optional(),
 	proof_types_supported: proofTypesSupportedSchema.optional(),
-});
+}).passthrough();
 
 const sdJwtSchema = commonSchema.extend({
 	format: z.literal(VerifiableCredentialFormat.VC_SDJWT).or(z.literal(VerifiableCredentialFormat.DC_SDJWT)),
