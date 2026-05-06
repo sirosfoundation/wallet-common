@@ -52,4 +52,33 @@ describe("The CustomCredentialSvg", () => {
 		assert(typeof result === 'string');
 		convertDataUriToImage(result, path.join(__dirname, "../../output/openID4VCIRenderingResult"));
 	});
+
+        it("does not call httpClient when logo.uri is already a data: URI", async () => {
+                let getCalled = false;
+                const trackingHttpClient: HttpClient = {
+                        async get(url, ...rest) {
+                                getCalled = true;
+                                return httpClient.get(url, ...rest);
+                        },
+                        async post() {
+                                return { status: 200, data: {} as any, headers: {} };
+                        },
+                };
+
+                const renderer = CustomCredentialSvg({ httpClient: trackingHttpClient });
+                const logoDataUri = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==`;
+
+                const result = await renderer.renderCustomSvgTemplate({
+                        signedClaims: {},
+                        displayConfig: {
+                                "name": "Test Credential",
+                                "logo": { "uri": logoDataUri },
+                        }
+                });
+
+                assert(!getCalled, "httpClient.get should not be called for data: URIs");
+                assert(result != null);
+                assert(typeof result === 'string');
+                assert(result.includes(encodeURIComponent(logoDataUri)), "logo data URI should be embedded directly");
+        });
 })
