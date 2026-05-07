@@ -76,7 +76,11 @@ export function CustomCredentialSvg(args: { httpClient: HttpClient }): CustomCre
 				: await getBase64Image(displayConfig?.background_image?.uri)
 			: '';
 
-		const logoBase64 = displayConfig?.logo?.uri ? await getBase64Image(displayConfig.logo.uri) : '';
+		const logoBase64 = displayConfig?.logo?.uri ?
+			displayConfig.logo.uri.startsWith("data:") ?
+				displayConfig.logo.uri
+				: await getBase64Image(displayConfig.logo.uri)
+			: '';
 		const expiryDate = formatExpiryDate(signedClaims);
 
 		const replacedSvgText = svgTemplate
