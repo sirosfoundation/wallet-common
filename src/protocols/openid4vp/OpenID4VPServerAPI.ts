@@ -616,8 +616,6 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 		vcEntityList: CredentialT[]
 	) {
 		const { dcql_query, client_id, nonce, response_uri, transaction_data } = S;
-		let apu = undefined;
-		let apv = undefined;
 		const generatedVPs: string[] = [];
 		const originalVCs: CredentialT[] = [];
 
@@ -747,9 +745,6 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 				};
 				const encoded = cborEncode(mdocStructure);
 				const mdoc = parse(encoded);
-				const mdocGeneratedNonce = generateRandomIdentifier(8);
-				apu = mdocGeneratedNonce;
-				apv = nonce;
 
 				let dcqlQueryWithClaims: any;
 				if (!descriptor.claims || descriptor.claims.length === 0) {
