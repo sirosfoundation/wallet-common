@@ -46,10 +46,10 @@ type OpenID4VPServerKeystore = {
 	generateDeviceResponse(
 		mdoc: any,
 		presentationDefinition: Record<string, unknown>,
-		apu: string | undefined,
-		apv: string | undefined,
+		nonce: string,
 		clientId: string,
-		responseUri: string
+		responseUri: string,
+		verifierJwkThumbprint: string | null,
 	): Promise<{ deviceResponseMDoc: any }>;
 };
 
@@ -616,8 +616,6 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 		vcEntityList: CredentialT[]
 	) {
 		const { dcql_query, client_id, nonce, response_uri, transaction_data } = S;
-		let apu = undefined;
-		let apv = undefined;
 		const generatedVPs: string[] = [];
 		const originalVCs: CredentialT[] = [];
 
@@ -747,9 +745,6 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 				};
 				const encoded = cborEncode(mdocStructure);
 				const mdoc = parse(encoded);
-				const mdocGeneratedNonce = generateRandomIdentifier(8);
-				apu = mdocGeneratedNonce;
-				apv = nonce;
 
 				let dcqlQueryWithClaims: any;
 				if (!descriptor.claims || descriptor.claims.length === 0) {
@@ -769,13 +764,25 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 				}
 
 				const presentationDefinition = this.convertDcqlToPresentationDefinition(dcqlQueryWithClaims);
+
+				// Compute verifier JWK thumbprint for direct_post.jwt, null otherwise
+				let verifierJwkThumbprint: string | null = null;
+				if (
+					[OpenID4VPResponseMode.DIRECT_POST_JWT, OpenID4VPResponseMode.DC_API_JWT].includes(S.response_mode) &&
+					S.client_metadata.authorization_encrypted_response_alg
+				) {
+					const { rp_eph_pub_jwk } = await retrieveKeys(S, this.deps.httpClient);
+					const { calculateJwkThumbprint } = await import('jose');
+					verifierJwkThumbprint = await calculateJwkThumbprint(rp_eph_pub_jwk, 'sha256');
+				}
+
 				const { deviceResponseMDoc } = await this.deps.keystore.generateDeviceResponse(
 					mdoc,
 					presentationDefinition,
-					apu,
-					apv,
+					nonce,
 					client_id,
-					response_uri
+					response_uri,
+					verifierJwkThumbprint,
 				);
 				const encodedDeviceResponse = base64url.encode(deviceResponseMDoc.encode());
 
@@ -808,7 +815,6 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 			};
 
 			const jwe = await new EncryptJWT(jwePayload)
-				.setKeyManagementParameters({ apu: new TextEncoder().encode(apu), apv: new TextEncoder().encode(apv) })
 				.setProtectedHeader({
 					alg: S.client_metadata.authorization_encrypted_response_alg,
 					enc: S.client_metadata.authorization_encrypted_response_enc,
