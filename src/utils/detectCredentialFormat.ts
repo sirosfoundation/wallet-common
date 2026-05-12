@@ -41,15 +41,16 @@ export function isSdJwt(raw: string): boolean {
  * Detect if a credential is a JWT VC in JSON format by checking for the absence
  * of tilde-separated disclosures and the presence of three dot-separated segments.
  */
-function isJwtVcJson(raw: string): boolean {
+export function isJwtVcJson(raw: string): boolean {
 	if (raw.includes('~')) return false;
 	return raw.split('.').length === 3;
 }
 
 /**
- * For SD-JWTs, we need to distinguish between "vc+sd-jwt" and "dc+sd-jwt" variants.
+ * Distinguish between VC-SD-JWT and DC-SD-JWT by inspecting the JWT header's "typ" field.
+ * If the "typ" is "dc+sd-jwt", it's a DC-SD-JWT; otherwise, it's a VC-SD-JWT.
  */
-function detectSdJwtVariant(raw: string): VerifiableCredentialFormat {
+export function detectSdJwtVariant(raw: string): VerifiableCredentialFormat {
 	try {
 		const firstDot = raw.indexOf('.');
 		const rawHeader = raw.slice(0, firstDot);
