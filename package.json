@@ -6,8 +6,8 @@
 	"types": "dist/index.d.ts",
 	"exports": {
 		".": {
-			"require": "./dist/index.js",
-			"types": "./dist/index.d.ts"
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
 		}
 	},
 	"files": [
@@ -35,8 +35,7 @@
 		"build": "rm -rf dist/ && tsc",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"lint": "tsc --noEmit",
-		"prepublishOnly": "npm run lint && npm test && npm run build"
+		"lint": "tsc --noEmit"
 	},
 	"engines": {
 		"node": ">=22.0.0"
