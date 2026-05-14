@@ -1,21 +1,48 @@
 {
-	"name": "wallet-common",
-	"version": "0.0.1",
+	"name": "@sirosfoundation/wallet-common",
+	"version": "0.1.0",
+	"description": "Reusable wallet components — credential parsing, rendering, verification, and OpenID4VP protocol support",
 	"main": "dist/index.js",
-	"license": "MIT",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"require": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
 	"files": [
-		"dist/**/*",
-		"src/**/*",
-		"package.json"
+		"dist"
+	],
+	"license": "BSD-2-Clause",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/sirosfoundation/wallet-common.git"
+	},
+	"homepage": "https://github.com/sirosfoundation/wallet-common#readme",
+	"bugs": {
+		"url": "https://github.com/sirosfoundation/wallet-common/issues"
+	},
+	"keywords": [
+		"wallet",
+		"credentials",
+		"sd-jwt-vc",
+		"mso-mdoc",
+		"openid4vp",
+		"verifiable-credentials",
+		"eudi-wallet"
 	],
 	"scripts": {
-		"test": "tsc && vitest run",
-		"test-start": "vitest",
 		"build": "rm -rf dist/ && tsc",
-		"prepare": "npm run build"
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"lint": "tsc --noEmit",
+		"prepublishOnly": "npm run lint && npm test && npm run build"
 	},
 	"engines": {
 		"node": ">=22.0.0"
+	},
+	"publishConfig": {
+		"access": "public"
 	},
 	"dependencies": {
 		"@auth0/mdl": "^2.2.0",
