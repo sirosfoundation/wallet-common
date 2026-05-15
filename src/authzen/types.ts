@@ -144,6 +144,13 @@ export interface AuthZENEvaluationResponse {
 	 * Additional context about the decision.
 	 */
 	context?: AuthZENEvaluationResponseContext;
+
+	/**
+	 * OAuth Authorization Server metadata resolved by the backend.
+	 * Populated for URL subject resolutions when the issuer's
+	 * well-known authorization server metadata is available.
+	 */
+	authorization_server_metadata?: Record<string, unknown>;
 }
 
 /**
