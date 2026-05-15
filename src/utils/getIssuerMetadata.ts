@@ -14,7 +14,9 @@ export async function getIssuerMetadata(
 }> {
 	if (!issuer) return { metadata: null };
 
-	const url = `${issuer}/.well-known/openid-credential-issuer`;
+	// RFC 8414 well-known URI construction: /.well-known/{suffix}{path}
+	const issuerUrl = new URL(issuer);
+	const url = `${issuerUrl.origin}/.well-known/openid-credential-issuer${issuerUrl.pathname.replace(/\/$/, '')}`;
 
 	let issuerResponse = null;
 
