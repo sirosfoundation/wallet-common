@@ -285,7 +285,7 @@ export function AuthZENClient(config: AuthZENClientConfig): IAuthZENClient {
 				const headers = await buildHeaders();
 				const request: AuthZENResolveRequest = {
 					subject_id: subjectId,
-					...(options?.subjectType && { subject_type: options.subjectType }),
+					subject_type: options?.subjectType ?? 'url',
 					...(options?.resourceType && { resource_type: options.resourceType }),
 				};
 				const response = await httpClient.post(
