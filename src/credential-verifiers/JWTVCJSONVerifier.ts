@@ -1,7 +1,7 @@
 import { Context, CredentialVerifier, PublicKeyResolverEngineI, HttpClient } from "../interfaces";
 import { CredentialVerificationError } from "../error";
 import { CustomResult, VerifiableCredentialFormat } from "../types";
-import { exportJWK, importJWK, importX509, JWK, jwtVerify, KeyLike } from "jose";
+import { importJWK, importX509, JWK, jwtVerify, KeyLike } from "jose";
 import { fromBase64Url } from "../utils/util";
 import { verifyCertificate } from "../utils/verifyCertificate";
 
@@ -176,21 +176,25 @@ export function JWTVCJSONVerifier(args: { context: Context, pkResolverEngine: Pu
 				};
 			}
 
-			const publicKeyResult = await getHolderPublicKey(rawCredential);
-			if (!publicKeyResult.success) {
-				// Holder binding is optional for jwt_vc_json — return success with empty holderPublicKey
-				return {
-					success: true,
-					value: {
-						holderPublicKey: {} as JWK,
-					},
-				};
+			// Extract holder public key JWK directly from cnf claim to avoid
+			// importing and re-exporting through Web Crypto (jose importJWK
+			// creates non-extractable CryptoKeys in browsers by default).
+			const parts = rawCredential.split(".");
+			let holderJwk: JWK = {} as JWK;
+			try {
+				const payload = JSON.parse(decoder.decode(fromBase64Url(parts[1])));
+				const cnf = payload.cnf as { jwk?: JWK } | undefined;
+				if (cnf?.jwk) {
+					holderJwk = cnf.jwk;
+				}
+			} catch {
+				// Holder binding is optional for jwt_vc_json
 			}
 
 			return {
 				success: true,
 				value: {
-					holderPublicKey: await exportJWK(publicKeyResult.value),
+					holderPublicKey: holderJwk,
 				},
 			};
 		},

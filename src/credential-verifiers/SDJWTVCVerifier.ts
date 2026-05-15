@@ -3,7 +3,7 @@ import type { HasherAndAlg } from "@sd-jwt/types";
 import { Context, CredentialVerifier, PublicKeyResolverEngineI, HttpClient } from "../interfaces";
 import { CredentialVerificationError } from "../error";
 import { CustomResult } from "../types";
-import { exportJWK, importJWK, importX509, JWK, jwtVerify, KeyLike } from "jose";
+import { importJWK, importX509, JWK, jwtVerify, KeyLike } from "jose";
 import { fromBase64Url, toBase64Url } from "../utils/util";
 import { verifyCertificate } from "../utils/verifyCertificate";
 
@@ -312,8 +312,11 @@ export function SDJWTVCVerifier(args: { context: Context, pkResolverEngine: Publ
 				}
 			}
 
-			const publicKeyResult = await getHolderPublicKey(rawCredential);
-			if (publicKeyResult.success === false) {
+			// Extract holder public key JWK directly from cnf claim to avoid
+			// importing and re-exporting through Web Crypto (jose importJWK
+			// creates non-extractable CryptoKeys in browsers by default).
+			const parseResult = await parse(rawCredential);
+			if (parseResult === CredentialVerificationError.InvalidFormat || !parseResult.parsedSdJwtWithPrettyClaims.cnf?.jwk) {
 				logError(CredentialVerificationError.CannotExtractHolderPublicKey, "Could not extract holder public key");
 				return {
 					success: false,
@@ -325,7 +328,7 @@ export function SDJWTVCVerifier(args: { context: Context, pkResolverEngine: Publ
 				success: true,
 				value: {
 					valid: true,
-					holderPublicKey: await exportJWK(publicKeyResult.value),
+					holderPublicKey: parseResult.parsedSdJwtWithPrettyClaims.cnf.jwk,
 				},
 			}
 		},
