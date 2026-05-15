@@ -12,10 +12,11 @@ import type { z } from "zod";
 import { OpenidCredentialIssuerMetadataSchema, } from "../schemas";
 import { dataUriResolver } from "../resolvers/dataUriResolver";
 import { friendlyNameResolver } from "../resolvers/friendlyNameResolver";
+import type { IAuthZENClient } from "../authzen/AuthZENClient";
 
 type IssuerMetadata = z.infer<typeof OpenidCredentialIssuerMetadataSchema>;
 
-export function MsoMdocParser(args: { context: Context, httpClient: HttpClient }): CredentialParser {
+export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, authzenClient?: IAuthZENClient }): CredentialParser {
 
 	function canParseMsoMdoc(raw: unknown): raw is string {
 
@@ -51,7 +52,7 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient }
 
 		try {
 			if (credentialIssuer?.credentialIssuerIdentifier) {
-				const { metadata } = await getIssuerMetadata(args.httpClient, credentialIssuer.credentialIssuerIdentifier, []);
+				const { metadata } = await getIssuerMetadata(args.httpClient, credentialIssuer.credentialIssuerIdentifier, [], true, args.authzenClient);
 				issuerMetadata = metadata ?? null;
 
 				const issuerClaimsArray = credentialIssuer?.credentialConfigurationId
