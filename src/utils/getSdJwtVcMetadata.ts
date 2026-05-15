@@ -186,7 +186,7 @@ export async function resolveIssuerMetadata(httpClient: any, issuerUrl: string):
 		const issUrl = new URL(issuerUrl);
 
 		// RFC 8414 well-known URI construction
-		const result = await httpClient.get(`${issUrl.origin}/.well-known/jwt-vc-issuer${issUrl.pathname.replace(/\/$/, '')}`, {}, { useCache: true }) as {
+		const result = await httpClient.get(`${issUrl.origin}/.well-known/jwt-vc-issuer${issUrl.pathname}`, {}, { useCache: true }) as {
 			data: { issuer: string };
 		};
 
