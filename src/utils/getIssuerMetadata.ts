@@ -60,7 +60,7 @@ async function getIssuerMetadataViaResolve(
 	metadata: z.infer<typeof OpenidCredentialIssuerMetadataSchema> | null;
 }> {
 	try {
-		const result = await authzenClient.resolve(issuer);
+		const result = await authzenClient.resolve(issuer, { resourceType: 'openid-credential-issuer' });
 		if (!result.ok) {
 			warnings.push({ code: CredentialParsingError.FailFetchIssuerMetadata });
 			return { metadata: null };
