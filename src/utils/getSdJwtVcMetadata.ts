@@ -197,7 +197,11 @@ export async function resolveIssuerMetadata(httpClient: any, issuerUrl: string):
 			typeof (result as any).data === 'object' &&
 			typeof (result as any).data.issuer === 'string'
 		) {
-			if (result.data.issuer !== issUrl.origin) {
+			// Compare against the full issuer identifier (origin + path), not just origin.
+			// A path-scoped issuer (e.g. https://host/issuer/) will advertise
+			// that full identifier in the metadata document.
+			const normalizedIssuer = issUrl.origin + issUrl.pathname.replace(/\/$/, '');
+			if (result.data.issuer !== normalizedIssuer && result.data.issuer !== issUrl.origin + issUrl.pathname) {
 				return { code: CredentialParsingError.JwtVcIssuerMismatch };
 			}
 		}
