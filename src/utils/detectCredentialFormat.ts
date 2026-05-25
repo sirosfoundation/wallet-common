@@ -20,7 +20,10 @@ export function isMdoc(raw: string): boolean {
 		const bytes = base64url.decode(raw.slice(0, 4));
 		return (
 			(bytes[0] === 0xA2 && bytes[1] === 0x6A) ||
-			(bytes[0] === 0xB9 && bytes[1] === 0x00)
+			(bytes[0] === 0xB9 && bytes[1] === 0x00) ||
+			(bytes[0] === 0xA3 && bytes[1] === 0x67) ||
+			(bytes[0] === 0xA3 && bytes[1] === 0x66) ||
+			(bytes[0] === 0xA3 && bytes[1] === 0x69)
 		);
 	} catch {
 		return false;
