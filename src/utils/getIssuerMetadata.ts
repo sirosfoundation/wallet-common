@@ -7,7 +7,7 @@ import type { IAuthZENClient } from "../authzen/AuthZENClient";
 
 export async function getIssuerMetadata(
 	httpClient: HttpClient,
-	issuer: string,
+	issuer: string | undefined,
 	warnings: MetadataWarning[],
 	useCache: boolean = true,
 	authzenClient?: IAuthZENClient,
@@ -70,7 +70,7 @@ async function getIssuerMetadataViaResolve(
 	metadata: z.infer<typeof OpenidCredentialIssuerMetadataSchema> | null;
 }> {
 	try {
-		const result = await authzenClient.resolve(issuer, { resourceType: 'openid-credential-issuer' });
+		const result = await authzenClient.resolve(issuer, { resourceType: 'credential_issuer' });
 		if (!result.ok) {
 			warnings.push({ code: CredentialParsingError.FailFetchIssuerMetadata });
 			return { metadata: null };
