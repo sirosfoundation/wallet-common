@@ -14,7 +14,17 @@ export async function getIssuerMetadata(
 }> {
 	if (!issuer) return { metadata: null };
 
-	const url = `${issuer}/.well-known/openid-credential-issuer`;
+	// RFC 8414 well-known URI construction: /.well-known/{suffix}{path}
+	let url: string;
+	try {
+		const issuerUrl = new URL(issuer);
+		url = `${issuerUrl.origin}/.well-known/openid-credential-issuer${issuerUrl.pathname}`;
+	} catch {
+		warnings.push({
+			code: CredentialParsingError.FailFetchIssuerMetadata,
+		});
+		return { metadata: null };
+	}
 
 	let issuerResponse = null;
 
