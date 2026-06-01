@@ -109,9 +109,7 @@ export function JWTVCJSONParser(args: { context: Context, httpClient: HttpClient
 			const vcTypes: string[] = validatedPayload.vc?.type ?? [];
 
 			// Fetch issuer metadata if available
-			const { metadata: issuerMetadata } = validatedPayload.iss
-				? await getIssuerMetadata(args.httpClient, validatedPayload.iss, warnings, true, args.authzenClient)
-				: { metadata: undefined };
+			const { metadata: issuerMetadata } = await getIssuerMetadata(args.httpClient, validatedPayload.iss, warnings, true, args.authzenClient);
 
 			const credentialIssuerMetadata = credentialIssuer?.credentialConfigurationId
 				? issuerMetadata?.credential_configurations_supported?.[credentialIssuer.credentialConfigurationId]

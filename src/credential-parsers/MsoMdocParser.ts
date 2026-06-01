@@ -25,7 +25,10 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 		const bytes = fromBase64Url(raw);
 		if (
 			(bytes[0] === 0xA2 && bytes[1] === 0x6A) ||
-			(bytes[0] === 0xB9 && bytes[1] === 0x00)
+			(bytes[0] === 0xB9 && bytes[1] === 0x00) ||
+			(bytes[0] === 0xA3 && bytes[1] === 0x67) ||
+			(bytes[0] === 0xA3 && bytes[1] === 0x66) ||
+			(bytes[0] === 0xA3 && bytes[1] === 0x69)
 		) {
 			return true;
 		}
