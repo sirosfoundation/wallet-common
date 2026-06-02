@@ -146,7 +146,7 @@ export interface IAuthZENClient {
 	 * @param subjectId - The subject identifier (DID, URL, etc.)
 	 * @param options - Optional subject_type and resource_type hints
 	 */
-	resolve(subjectId: string, options?: { subjectType?: string; resourceType?: string }): Promise<Result<AuthZENEvaluationResponse, AuthZENError>>;
+	resolve(subjectId: string, options?: { subjectType?: string; resourceType?: string; useCache?: boolean }): Promise<Result<AuthZENEvaluationResponse, AuthZENError>>;
 
 	/**
 	 * Evaluate a verifier's trust status.
@@ -289,7 +289,7 @@ export function AuthZENClient(config: AuthZENClientConfig): IAuthZENClient {
 			}
 		},
 
-		async resolve(subjectId: string, options?: { subjectType?: string; resourceType?: string }): Promise<Result<AuthZENEvaluationResponse, AuthZENError>> {
+		async resolve(subjectId: string, options?: { subjectType?: string; resourceType?: string, useCache?: boolean }): Promise<Result<AuthZENEvaluationResponse, AuthZENError>> {
 			const cacheKey = `${subjectId}\0${options?.subjectType ?? 'url'}\0${options?.resourceType ?? ''}`;
 
 			// Check cache
@@ -314,7 +314,7 @@ export function AuthZENClient(config: AuthZENClientConfig): IAuthZENClient {
 					`${normalizedBaseUrl}/v1/resolve`,
 					request,
 					headers,
-					{ timeout }
+					{ timeout, useCache: options?.useCache === true }
 				);
 
 				if (response.status === 200) {
