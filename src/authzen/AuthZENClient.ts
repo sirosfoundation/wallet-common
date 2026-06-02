@@ -66,6 +66,12 @@ export interface AuthZENClientConfig {
 	 * Request timeout in milliseconds (default: 30000).
 	 */
 	timeout?: number;
+
+	/**
+	 * TTL for cached resolve responses in milliseconds (default: 300000 = 5 min).
+	 * Set to 0 to disable caching.
+	 */
+	resolveCacheTtl?: number;
 }
 
 /**
@@ -157,10 +163,13 @@ export interface IAuthZENClient {
  * Creates an AuthZEN client for trust evaluation.
  */
 export function AuthZENClient(config: AuthZENClientConfig): IAuthZENClient {
-	const { httpClient, baseUrl, getAuthToken, tenantId, timeout = 30000 } = config;
+	const { httpClient, baseUrl, getAuthToken, tenantId, timeout = 30000, resolveCacheTtl = 300_000 } = config;
 
 	// Normalize base URL (remove trailing slash)
 	const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
+
+	// Local resolve cache: key → { value, expiry }
+	const resolveCache = new Map<string, { value: AuthZENEvaluationResponse; expiry: number }>();
 
 	/**
 	 * Build request headers with auth token.
@@ -281,11 +290,24 @@ export function AuthZENClient(config: AuthZENClientConfig): IAuthZENClient {
 		},
 
 		async resolve(subjectId: string, options?: { subjectType?: string; resourceType?: string }): Promise<Result<AuthZENEvaluationResponse, AuthZENError>> {
+			const cacheKey = `${subjectId}\0${options?.subjectType ?? 'url'}\0${options?.resourceType ?? ''}`;
+
+			// Check cache
+			if (resolveCacheTtl > 0) {
+				const cached = resolveCache.get(cacheKey);
+				if (cached && Date.now() < cached.expiry) {
+					return ok(cached.value);
+				}
+				if (cached) {
+					resolveCache.delete(cacheKey);
+				}
+			}
+
 			try {
 				const headers = await buildHeaders();
 				const request: AuthZENResolveRequest = {
 					subject_id: subjectId,
-					...(options?.subjectType && { subject_type: options.subjectType }),
+					subject_type: options?.subjectType ?? 'url',
 					...(options?.resourceType && { resource_type: options.resourceType }),
 				};
 				const response = await httpClient.post(
@@ -296,7 +318,11 @@ export function AuthZENClient(config: AuthZENClientConfig): IAuthZENClient {
 				);
 
 				if (response.status === 200) {
-					return ok(response.data as AuthZENEvaluationResponse);
+					const value = response.data as AuthZENEvaluationResponse;
+					if (resolveCacheTtl > 0) {
+						resolveCache.set(cacheKey, { value, expiry: Date.now() + resolveCacheTtl });
+					}
+					return ok(value);
 				}
 
 				return err(parseError(response.status, response.data));

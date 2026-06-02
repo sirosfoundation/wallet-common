@@ -14,8 +14,9 @@ import { convertOpenid4vciToSdjwtvcClaims } from "../functions/convertOpenid4vci
 import { dataUriResolver } from "../resolvers/dataUriResolver";
 import { friendlyNameResolver } from "../resolvers/friendlyNameResolver";
 import { fromBase64, fromBase64Url } from "../utils";
+import type { IAuthZENClient } from "../authzen/AuthZENClient";
 
-export function SDJWTVCParser(args: { context: Context, httpClient: HttpClient }): CredentialParser {
+export function SDJWTVCParser(args: { context: Context, httpClient: HttpClient, authzenClient?: IAuthZENClient }): CredentialParser {
 	const encoder = new TextEncoder();
 
 	function canParseSdJwtVc(raw: unknown): raw is string {
@@ -126,7 +127,7 @@ export function SDJWTVCParser(args: { context: Context, httpClient: HttpClient }
 			}
 
 
-			const { metadata: issuerMetadata } = validatedParsedClaims.iss ? await getIssuerMetadata(args.httpClient, validatedParsedClaims.iss, warnings) : { metadata: undefined };
+			const { metadata: issuerMetadata } = await getIssuerMetadata(args.httpClient, validatedParsedClaims.iss, warnings, true, args.authzenClient);
 
 			const vctIntegrity = validatedParsedClaims['vct#integrity'] as string | undefined;
 			const getSdJwtMetadataResult = await getSdJwtVcMetadata(args.context.vctResolutionEngine, args.context.subtle, args.httpClient, validatedParsedClaims.vct, vctIntegrity, warnings);

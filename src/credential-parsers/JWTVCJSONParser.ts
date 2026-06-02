@@ -8,8 +8,9 @@ import { convertOpenid4vciToSdjwtvcClaims } from "../functions/convertOpenid4vci
 import { dataUriResolver } from "../resolvers/dataUriResolver";
 import { friendlyNameResolver } from "../resolvers/friendlyNameResolver";
 import { fromBase64Url } from "../utils";
+import type { IAuthZENClient } from "../authzen/AuthZENClient";
 
-export function JWTVCJSONParser(args: { context: Context, httpClient: HttpClient }): CredentialParser {
+export function JWTVCJSONParser(args: { context: Context, httpClient: HttpClient, authzenClient?: IAuthZENClient }): CredentialParser {
 	const decoder = new TextDecoder();
 
 	function canParseJwtVcJson(raw: unknown): raw is string {
@@ -108,9 +109,7 @@ export function JWTVCJSONParser(args: { context: Context, httpClient: HttpClient
 			const vcTypes: string[] = validatedPayload.vc?.type ?? [];
 
 			// Fetch issuer metadata if available
-			const { metadata: issuerMetadata } = validatedPayload.iss
-				? await getIssuerMetadata(args.httpClient, validatedPayload.iss, warnings)
-				: { metadata: undefined };
+			const { metadata: issuerMetadata } = await getIssuerMetadata(args.httpClient, validatedPayload.iss, warnings, true, args.authzenClient);
 
 			const credentialIssuerMetadata = credentialIssuer?.credentialConfigurationId
 				? issuerMetadata?.credential_configurations_supported?.[credentialIssuer.credentialConfigurationId]
