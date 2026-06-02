@@ -9,7 +9,7 @@ export async function getIssuerMetadata(
 	httpClient: HttpClient,
 	issuer: string | undefined,
 	warnings: MetadataWarning[],
-	useCache: boolean = true,
+	useCache?: boolean,
 	authzenClient?: IAuthZENClient,
 ): Promise<{
 	metadata: z.infer<typeof OpenidCredentialIssuerMetadataSchema> | null;
@@ -17,7 +17,7 @@ export async function getIssuerMetadata(
 	if (!issuer) return { metadata: null };
 
 	if (authzenClient) {
-		return getIssuerMetadataViaResolve(authzenClient, issuer, warnings);
+		return getIssuerMetadataViaResolve(authzenClient, issuer, warnings, useCache);
 	}
 
 	// RFC 8414 well-known URI construction: /.well-known/{suffix}{path}
@@ -66,11 +66,12 @@ async function getIssuerMetadataViaResolve(
 	authzenClient: IAuthZENClient,
 	issuer: string,
 	warnings: MetadataWarning[],
+	useCache?: boolean,
 ): Promise<{
 	metadata: z.infer<typeof OpenidCredentialIssuerMetadataSchema> | null;
 }> {
 	try {
-		const result = await authzenClient.resolve(issuer, { resourceType: 'credential_issuer' });
+		const result = await authzenClient.resolve(issuer, { resourceType: 'credential_issuer', useCache });
 		if (!result.ok) {
 			warnings.push({ code: CredentialParsingError.FailFetchIssuerMetadata });
 			return { metadata: null };
