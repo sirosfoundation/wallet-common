@@ -26,6 +26,40 @@ describe("getIssuerMetadata", () => {
 		assert(warnings.some(w => w.code === CredentialParsingError.FailFetchIssuerMetadata));
 	});
 
+	it("should strip trailing slash from well-known URL", async () => {
+		const warnings: MetadataWarning[] = [];
+		let requestedUrl = "";
+
+		const httpClient: HttpClient = {
+			get: async (url: string) => {
+				requestedUrl = url;
+				return { status: 400 };
+			}
+		};
+
+		await getIssuerMetadata(httpClient, "https://example.com/issuer/", warnings);
+
+		assert(requestedUrl === "https://example.com/.well-known/openid-credential-issuer/issuer",
+			`Expected trailing slash stripped, got: ${requestedUrl}`);
+	});
+
+	it("should construct RFC 8615 well-known URL with path", async () => {
+		const warnings: MetadataWarning[] = [];
+		let requestedUrl = "";
+
+		const httpClient: HttpClient = {
+			get: async (url: string) => {
+				requestedUrl = url;
+				return { status: 400 };
+			}
+		};
+
+		await getIssuerMetadata(httpClient, "https://example.com/tenant/1", warnings);
+
+		assert(requestedUrl === "https://example.com/.well-known/openid-credential-issuer/tenant/1",
+			`Expected RFC 8615 path insertion, got: ${requestedUrl}`);
+	});
+
 	it("should warn if issuer metadata has invalid schema", async () => {
 		const warnings: MetadataWarning[] = [];
 
