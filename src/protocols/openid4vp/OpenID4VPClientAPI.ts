@@ -62,11 +62,15 @@ export class OpenID4VPClientAPI {
 		};
 
 		if (this.options.credentialEngineOptions.trustedCredentialIssuerIdentifiers) {
-			const result = (await Promise.all(this.options.credentialEngineOptions.trustedCredentialIssuerIdentifiers.map(async (credentialIssuerIdentifier) =>
-				this.httpClient.get(`${credentialIssuerIdentifier}/openid/.well-known/openid-credential-issuer`)
+			const result = (await Promise.all(this.options.credentialEngineOptions.trustedCredentialIssuerIdentifiers.map(async (credentialIssuerIdentifier) => {
+				// RFC 8615 well-known URI construction with trailing slash stripped per OID4VCI §12.2.1
+				const issuerUrl = new URL(credentialIssuerIdentifier);
+				const path = issuerUrl.pathname.replace(/\/+$/, '');
+				const wellKnownUrl = `${issuerUrl.origin}/.well-known/openid-credential-issuer${path}`;
+				return this.httpClient.get(wellKnownUrl)
 					.then((res) => res.data as CredentialIssuerMetadata)
-					.catch((e) => { console.error(e); return null; })
-			))).filter((r): r is CredentialIssuerMetadata => r !== null);
+					.catch((e) => { console.error(e); return null; });
+			}))).filter((r): r is CredentialIssuerMetadata => r !== null);
 
 			const iacasResponses = (await Promise.all(result.map(async (metadata) => {
 				if (metadata && metadata.mdoc_iacas_uri) {
