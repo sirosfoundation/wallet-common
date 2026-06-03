@@ -115,16 +115,25 @@ function getRandomUUID(randomUUID?: () => string): string {
  * Parse client_id to determine the scheme.
  * Supported schemes:
  * - x509_san_dns:domain.com
+ * - decentralized_identifier:did:web:domain.com
  * - did:web:domain.com (or did:jwk:...)
  * - https://domain.com
  * - pre-registered client_id (no scheme prefix)
  */
-function parseClientIdScheme(clientId: string): ClientIdScheme {
+export function parseClientIdScheme(clientId: string): ClientIdScheme {
 	if (clientId.startsWith('x509_san_dns:')) {
 		return {
 			scheme: 'x509_san_dns',
 			clientId,
 			identifier: clientId.substring('x509_san_dns:'.length),
+		};
+	}
+
+	if (clientId.startsWith('decentralized_identifier:')) {
+		return {
+			scheme: 'did',
+			clientId,
+			identifier: clientId.substring('decentralized_identifier:'.length),
 		};
 	}
 

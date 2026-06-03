@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 import Crypto from "node:crypto";
 import { Jwt, SDJwt } from "@sd-jwt/core";
-import { OpenID4VPServerAPI } from "./OpenID4VPServerAPI";
+import { OpenID4VPServerAPI, parseClientIdScheme } from "./OpenID4VPServerAPI";
 import { OpenID4VPResponseMode, TrustEvaluationResult } from "./types";
 import { VerifiableCredentialFormat } from "../../types";
 import { TrustStatus } from "../../authzen/types";
@@ -320,5 +320,16 @@ describe("OpenID4VPServerAPI.handleAuthorizationRequest", () => {
 		const result = await helper.handleAuthorizationRequest(url.toString(), []);
 		assert("error" in result);
 		assert(result.error === "old_state");
+	});
+});
+
+describe("parseClientIdScheme", () => {
+	it("should parse decentralized_identifier DID client IDs as did scheme", () => {
+		const clientId = "decentralized_identifier:did:web:verifier.example.com";
+		const parsed = parseClientIdScheme(clientId);
+
+		assert(parsed.scheme === "did");
+		assert(parsed.clientId === clientId);
+		assert(parsed.identifier === "did:web:verifier.example.com");
 	});
 });
