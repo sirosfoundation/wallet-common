@@ -130,11 +130,14 @@ export function parseClientIdScheme(clientId: string): ClientIdScheme {
 	}
 
 	if (clientId.startsWith('decentralized_identifier:')) {
-		return {
-			scheme: 'did',
-			clientId,
-			identifier: clientId.substring('decentralized_identifier:'.length),
-		};
+		const identifier = clientId.substring('decentralized_identifier:'.length);
+		if (identifier.startsWith('did:')) {
+			return {
+				scheme: 'did',
+				clientId,
+				identifier,
+			};
+		}
 	}
 
 	if (clientId.startsWith('did:')) {
