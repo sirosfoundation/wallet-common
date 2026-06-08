@@ -119,8 +119,19 @@ async function fetchAndMergeMetadata(
 
 	let metadata: TypeMetadataSchema | undefined;
 
+	// Registry
+	if (vctResolutionEngine) {
+		const maybe = await vctResolutionEngine.getVctMetadataDocument(metadataId);
+		if (maybe?.ok) {
+			metadata = maybe.value as TypeMetadataSchema;
+		} else if (maybe?.error === "invalid_schema") {
+			const resultCode = handleMetadataCode(CredentialParsingError.SchemaShapeFail, warnings);
+			if (resultCode) return resultCode;
+		}
+	}
+
 	// HTTP (only if valid URL)
-	if (isValidHttpUrl(metadataId)) {
+	if (!metadata && isValidHttpUrl(metadataId)) {
 		const res = await httpClient.get(metadataId, {}, { useCache: true });
 
 		if (
@@ -139,17 +150,6 @@ async function fetchAndMergeMetadata(
 			} else {
 				metadata = validated.data as TypeMetadataSchema;
 			}
-		}
-	}
-
-	// Registry
-	if (!metadata && vctResolutionEngine) {
-		const maybe = await vctResolutionEngine.getVctMetadataDocument(metadataId);
-		if (maybe?.ok) {
-			metadata = maybe.value as TypeMetadataSchema;
-		} else if (maybe?.error === "invalid_schema") {
-			const resultCode = handleMetadataCode(CredentialParsingError.SchemaShapeFail, warnings);
-			if (resultCode) return resultCode;
 		}
 	}
 
