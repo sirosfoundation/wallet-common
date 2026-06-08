@@ -56,10 +56,22 @@ const commonSchema = z.object({
 	proof_types_supported: proofTypesSupportedSchema.optional(),
 }).passthrough();
 
-const sdJwtSchema = commonSchema.extend({
-	format: z.literal(VerifiableCredentialFormat.VC_SDJWT).or(z.literal(VerifiableCredentialFormat.DC_SDJWT)),
+
+const dcSdJwtSchema = commonSchema.extend({
+	format: z.literal(VerifiableCredentialFormat.DC_SDJWT),
 	vct: z.string()
 });
+
+const vcSdJwtSchema = commonSchema.extend({
+	format: z.literal(VerifiableCredentialFormat.VC_SDJWT),
+	credential_definition: z.object({
+		"@context": z.array(z.string()).optional(),
+		type: z.array(z.string())
+	}).optional(),
+	vct: z.string().optional() // Some issuers include it, some don't
+});
+
+const sdJwtSchema = vcSdJwtSchema.or(dcSdJwtSchema);
 
 
 const msoDocSchema = commonSchema.extend({
