@@ -20,11 +20,13 @@ export async function getIssuerMetadata(
 		return getIssuerMetadataViaResolve(authzenClient, issuer, warnings, useCache);
 	}
 
-	// RFC 8414 well-known URI construction: /.well-known/{suffix}{path}
+	// RFC 8615 well-known URI construction: /.well-known/{suffix}{path}
+	// Strip trailing slash per OID4VCI §12.2.1
 	let url: string;
 	try {
 		const issuerUrl = new URL(issuer);
-		url = `${issuerUrl.origin}/.well-known/openid-credential-issuer${issuerUrl.pathname}`;
+		const path = issuerUrl.pathname.replace(/\/+$/, '');
+		url = `${issuerUrl.origin}/.well-known/openid-credential-issuer${path}`;
 	} catch {
 		warnings.push({
 			code: CredentialParsingError.FailFetchIssuerMetadata,
