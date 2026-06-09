@@ -290,7 +290,10 @@ export function AuthZENClient(config: AuthZENClientConfig): IAuthZENClient {
 		},
 
 		async resolve(subjectId: string, options?: { subjectType?: string; resourceType?: string, useCache?: boolean }): Promise<Result<AuthZENEvaluationResponse, AuthZENError>> {
-			const cacheKey = `${subjectId}\0${options?.subjectType ?? 'url'}\0${options?.resourceType ?? ''}`;
+			// Auto-detect subject_type from the identifier when not explicitly set:
+			// DID identifiers use "key", URLs use "url".
+			const effectiveSubjectType = options?.subjectType ?? (subjectId.startsWith('did:') ? 'key' : 'url');
+			const cacheKey = `${subjectId}\0${effectiveSubjectType}\0${options?.resourceType ?? ''}`;
 
 			// Check cache
 			if (resolveCacheTtl > 0) {
@@ -307,7 +310,7 @@ export function AuthZENClient(config: AuthZENClientConfig): IAuthZENClient {
 				const headers = await buildHeaders();
 				const request: AuthZENResolveRequest = {
 					subject_id: subjectId,
-					subject_type: options?.subjectType ?? 'url',
+					subject_type: effectiveSubjectType,
 					...(options?.resourceType && { resource_type: options.resourceType }),
 				};
 				const response = await httpClient.post(
