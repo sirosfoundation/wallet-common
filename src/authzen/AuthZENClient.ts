@@ -81,7 +81,7 @@ export interface KeyMaterial {
 	/**
 	 * Type of key material.
 	 */
-	type: 'jwk' | 'x5c' | 'x509_san_dns' | 'kid' | 'resolution' | string;
+	type: 'jwk' | 'x5c' | 'x509_san_dns' | 'kid' | 'resolution';
 
 	/**
 	 * Key data. For JWK, this is the JWK object.
