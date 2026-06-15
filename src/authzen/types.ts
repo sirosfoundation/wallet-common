@@ -48,6 +48,7 @@ export interface AuthZENResource {
 	/**
 	 * Key material. For JWK, this is an array containing the JWK object.
 	 * For x5c, this is an array of base64-encoded DER certificates.
+	 * For resolution, this is an empty array (resolution-only request).
 	 */
 	key?: unknown[];
 }

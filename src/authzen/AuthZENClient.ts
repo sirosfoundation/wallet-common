@@ -81,12 +81,13 @@ export interface KeyMaterial {
 	/**
 	 * Type of key material.
 	 */
-	type: 'jwk' | 'x5c' | 'x509_san_dns' | 'kid';
+	type: 'jwk' | 'x5c' | 'x509_san_dns' | 'kid' | 'resolution' | string;
 
 	/**
 	 * Key data. For JWK, this is the JWK object.
 	 * For x5c, this is an array of base64-encoded certificates.
 	 * For kid, this is the key ID string (requires resolution).
+	 * For resolution, this is an empty array (resolution-only request).
 	 */
 	key: unknown | unknown[];
 }
