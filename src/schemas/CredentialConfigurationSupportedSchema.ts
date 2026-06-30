@@ -77,7 +77,6 @@ const sdJwtSchema = vcSdJwtSchema.or(dcSdJwtSchema);
 const msoDocSchema = commonSchema.extend({
 	format: z.literal(VerifiableCredentialFormat.MSO_MDOC),
 	doctype: z.string(),
-	credential_signing_alg_values_supported: z.array(z.number()).optional(),
 });
 
 
