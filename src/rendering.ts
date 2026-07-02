@@ -5,7 +5,7 @@ import { escapeSVG } from './utils/escapeSVG';
 import { CredentialClaimPath } from './types';
 
 export function CredentialRenderingService(): CredentialRendering {
-	const renderSvgTemplate = async ({ json, credentialImageSvgTemplate, sdJwtVcMetadataClaims, filter }: { json: any, credentialImageSvgTemplate: string, sdJwtVcMetadataClaims: any, filter?: Array<CredentialClaimPath> }) => {
+	const renderSvgTemplate = async ({ json, credentialImageSvgTemplate, vcMetadataClaims, filter }: { json: any, credentialImageSvgTemplate: string, vcMetadataClaims: any, filter?: Array<CredentialClaimPath> }) => {
 
 		let svgContent = null;
 		try {
@@ -16,7 +16,7 @@ export function CredentialRenderingService(): CredentialRendering {
 
 		if (svgContent) {
 			// Build pathMap from credentialHeader.vctm.claims
-			const pathMap = (sdJwtVcMetadataClaims ?? []).reduce((acc: any, claim: any) => {
+			const pathMap = (vcMetadataClaims ?? []).reduce((acc: any, claim: any) => {
 				if (claim.svg_id && claim.path) {
 					acc[claim.svg_id] = claim.path;
 				}

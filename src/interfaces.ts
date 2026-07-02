@@ -7,7 +7,7 @@ export interface CredentialRendering {
 	renderSvgTemplate(args: {
 		json: any;
 		credentialImageSvgTemplate: string;
-		sdJwtVcMetadataClaims: any;
+		vcMetadataClaims?: any;
 		filter?: Array<CredentialClaimPath>;
 	}): Promise<string | null>
 }

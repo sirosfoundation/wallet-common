@@ -43,10 +43,15 @@ const commonSchema = z.object({
 				uri: z.string()
 			}).optional(),
 			locale: z.string().optional(),
+			rendering :z.object({svg_templates: z.array(z.object({
+				uri: z.string(),
+				alt_text: z.string().optional(),
+			}))}).optional(),
 			logo: z.object({
 				uri: z.string(),
 				alt_text: z.string().optional(),
 			}).optional(),
+			
 		})).optional(),
 		claims: z.array(OpenIdClaimSchema).optional(),
 	}).optional(),
@@ -77,6 +82,7 @@ const sdJwtSchema = vcSdJwtSchema.or(dcSdJwtSchema);
 const msoDocSchema = commonSchema.extend({
 	format: z.literal(VerifiableCredentialFormat.MSO_MDOC),
 	doctype: z.string(),
+	credential_signing_alg_values_supported: z.array(z.string().or(z.number())).optional(),
 });
 
 

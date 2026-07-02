@@ -144,7 +144,7 @@ describe("The CredentialRendering", () => {
 		const dataUri = await cr.renderSvgTemplate({
 			json: { ...exampleCredentialPayload },
 			credentialImageSvgTemplate: credentialSvgTemplate,
-			sdJwtVcMetadataClaims: exampleSdJwtVcMetadataClaimsAttribute,
+			vcMetadataClaims: exampleSdJwtVcMetadataClaimsAttribute,
 		});
 
 		assert(dataUri !== null, "Svg not rendered");
@@ -157,7 +157,7 @@ describe("The CredentialRendering", () => {
 		const dataUri = await cr.renderSvgTemplate({
 			json: { ...exampleCredentialPayload },
 			credentialImageSvgTemplate: credentialSvgTemplate,
-			sdJwtVcMetadataClaims: exampleSdJwtVcMetadataClaimsAttribute,
+			vcMetadataClaims: exampleSdJwtVcMetadataClaimsAttribute,
 			filter: [
 				["birth_date"]
 			]

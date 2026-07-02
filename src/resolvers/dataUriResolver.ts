@@ -18,8 +18,8 @@ type DataUriResolverOptions = {
 	credentialDisplayArray?: TypeDisplayEntry[];
 	issuerDisplayArray?: IssuerDisplayEntry[];
 
-	sdJwtVcRenderer?: CredentialRendering;
-	sdJwtVcMetadataClaims?: ClaimMetadataEntry[];
+	vcRenderer?: CredentialRendering;
+	vcMetadataClaims?: ClaimMetadataEntry[];
 
 	fallbackName?: string;
 };
@@ -30,8 +30,8 @@ export function dataUriResolver({
 	credentialDisplayArray,
 	issuerDisplayArray,
 	httpClient,
-	sdJwtVcRenderer,
-	sdJwtVcMetadataClaims,
+	vcRenderer,
+	vcMetadataClaims,
 	fallbackName = "Verifiable Credential",
 }: DataUriResolverOptions): ImageDataUriCallback {
 	return async (
@@ -56,7 +56,7 @@ export function dataUriResolver({
 				credentialDisplayLocalized?.rendering?.simple || null;
 
 			// 1. Try SVG template rendering (SD-JWT VC)
-			if (svgTemplateUri && sdJwtVcRenderer) {
+			if (svgTemplateUri && vcRenderer) {
 				let credentialImageSvgTemplate: string | undefined;
 
 				if (svgTemplateUri.startsWith('data:')) {
@@ -83,11 +83,11 @@ export function dataUriResolver({
 				}
 
 				if (credentialImageSvgTemplate) {
-					const rendered = await sdJwtVcRenderer
+					const rendered = await vcRenderer
 						.renderSvgTemplate({
 							json: signedClaims,
 							credentialImageSvgTemplate,
-							sdJwtVcMetadataClaims,
+							vcMetadataClaims,
 							filter,
 						})
 						.catch(() => null);
