@@ -118,9 +118,6 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 			const credentialDisplayArray = credentialIssuer?.credentialConfigurationId
 				? issuerMetadata?.credential_configurations_supported?.[credentialIssuer.credentialConfigurationId]?.credential_metadata?.display
 				: undefined;
-
-			
-
 			const friendlyName = friendlyNameResolver({
 				issuerDisplayArray: credentialDisplayArray as any,
 				fallbackName: "mdoc Verifiable Credential",

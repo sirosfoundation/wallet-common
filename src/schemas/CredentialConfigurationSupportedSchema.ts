@@ -51,7 +51,6 @@ const commonSchema = z.object({
 				uri: z.string(),
 				alt_text: z.string().optional(),
 			}).optional(),
-			
 		})).optional(),
 		claims: z.array(OpenIdClaimSchema).optional(),
 	}).optional(),
