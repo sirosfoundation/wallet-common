@@ -22,6 +22,7 @@ const OpenIdClaimSchema = z.object({
 	path: z.array(
 		z.union([z.string(), z.null(), z.number().int().nonnegative()])
 	).nonempty(),
+	svg_id: z.string().optional(),
 	mandatory: z.boolean().optional(),
 	display: z.array(
 		z.object({

@@ -115,24 +115,33 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 			const renderer = CustomCredentialSvg({ httpClient: args.httpClient });
 			const { issuerMetadata, TypeMetadata } = await fetchIssuerMetadataAndDocs(credentialIssuer);
 
-			const credentialDisplayArray = credentialIssuer?.credentialConfigurationId
+			const issuerDisplayArray = credentialIssuer?.credentialConfigurationId
 				? issuerMetadata?.credential_configurations_supported?.[credentialIssuer.credentialConfigurationId]?.credential_metadata?.display
 				: undefined;
+			const claims = credentialIssuer?.credentialConfigurationId
+				? issuerMetadata?.credential_configurations_supported?.[credentialIssuer.credentialConfigurationId]?.credential_metadata?.claims
+				: undefined;
 			const friendlyName = friendlyNameResolver({
-				issuerDisplayArray: credentialDisplayArray as any,
+				issuerDisplayArray: issuerDisplayArray as any,
 				fallbackName: "mdoc Verifiable Credential",
 			});
+
+			const vcMetadataClaims = claims
+			? Object.entries(claims).map(([claimKey, claimValue]) => {
+					const svgId = (claimValue as any).svg_id || claimKey;
+					return {
+						svg_id: svgId,
+						path: (claimValue as any).path || ["eu.europa.ec.eudi.pid.1", claimKey]
+					};
+				})
+			: [];
 			const dataUri = dataUriResolver({
 				httpClient: args.httpClient,
 				customRenderer: renderer,
 				signedClaims,
-				credentialDisplayArray: credentialDisplayArray as any,
+				credentialDisplayArray: issuerDisplayArray as any,
 				vcRenderer: CredentialRenderingService(),
-				vcMetadataClaims: [
-						{ svg_id: "given_name",                    path: ["eu.europa.ec.eudi.pid.1", "given_name"] },
-						{ svg_id: "family_name",                   path: ["eu.europa.ec.eudi.pid.1", "family_name"] },
-						{ svg_id: "issuing_authority",                   path: ["eu.europa.ec.eudi.pid.1", "family_name"] },
-				],
+				vcMetadataClaims: vcMetadataClaims,
 				fallbackName: "mdoc Verifiable Credential",
 		});
 		return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
@@ -167,34 +176,41 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 			const renderer = CustomCredentialSvg({ httpClient: args.httpClient });
 			const { issuerMetadata, TypeMetadata } = await fetchIssuerMetadataAndDocs(credentialIssuer);
 
-			const credentialDisplayArray = credentialIssuer?.credentialConfigurationId
+			const issuerDisplayArray = credentialIssuer?.credentialConfigurationId
 				? issuerMetadata?.credential_configurations_supported?.[credentialIssuer.credentialConfigurationId]?.credential_metadata?.display
 				: undefined;
-
+			const claims = credentialIssuer?.credentialConfigurationId
+				? issuerMetadata?.credential_configurations_supported?.[credentialIssuer.credentialConfigurationId]?.credential_metadata?.claims
+				: undefined;
 			const friendlyName = friendlyNameResolver({
-				issuerDisplayArray: credentialDisplayArray as any,
+				issuerDisplayArray: issuerDisplayArray as any,
 				fallbackName: "mdoc Verifiable Credential",
 			});
+
+			const vcMetadataClaims = claims
+			? Object.entries(claims).map(([claimKey, claimValue]) => {
+					const svgId = (claimValue as any).svg_id || claimKey;
+					return {
+						svg_id: svgId,
+						path: (claimValue as any).path
+					};
+				})
+			: [];
 			const dataUri = dataUriResolver({
 				httpClient: args.httpClient,
 				customRenderer: renderer,
 				signedClaims,
-				credentialDisplayArray: credentialDisplayArray as any,
+				credentialDisplayArray: issuerDisplayArray as any,
 				vcRenderer: CredentialRenderingService(),
-				vcMetadataClaims: [
-						{ svg_id: "given_name",                    path: ["eu.europa.ec.eudi.pid.1", "given_name"] },
-						{ svg_id: "family_name",                   path: ["eu.europa.ec.eudi.pid.1", "family_name"] },
-						{ svg_id: "issuing_authority",                   path: ["eu.europa.ec.eudi.pid.1", "family_name"] },
-				],
+				vcMetadataClaims: vcMetadataClaims,
 				fallbackName: "mdoc Verifiable Credential",
-			});
+		});
 
-			return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
+		return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
 		} catch {
 			return null;
 		}
 	}
-
 	return {
 
 		async parse({ rawCredential, credentialIssuer }) {
