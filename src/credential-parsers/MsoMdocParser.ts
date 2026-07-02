@@ -189,7 +189,7 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 				fallbackName: "mdoc Verifiable Credential",
 			});
 
-		return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
+			return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
 		} catch {
 			return null;
 		}
