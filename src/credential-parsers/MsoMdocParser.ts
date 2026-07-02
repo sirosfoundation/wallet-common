@@ -187,7 +187,7 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 						{ svg_id: "issuing_authority",                   path: ["eu.europa.ec.eudi.pid.1", "family_name"] },
 				],
 				fallbackName: "mdoc Verifiable Credential",
-		});
+			});
 
 		return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
 		} catch {
