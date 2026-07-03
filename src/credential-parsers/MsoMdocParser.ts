@@ -126,15 +126,6 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 				fallbackName: "mdoc Verifiable Credential",
 			});
 
-			const vcMetadataClaims = claims
-			? Object.entries(claims).map(([claimKey, claimValue]) => {
-					const svgId = (claimValue as any).svg_id || claimKey;
-					return {
-						svg_id: svgId,
-						path: (claimValue as any).path || ["eu.europa.ec.eudi.pid.1", claimKey]
-					};
-				})
-			: [];
 			const dataUri = dataUriResolver({
 				httpClient: args.httpClient,
 				customRenderer: renderer,
@@ -142,7 +133,7 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 				signedClaims,
 				credentialDisplayArray: issuerDisplayArray as any,
 				vcRenderer: CredentialRenderingService(),
-				vcMetadataClaims: vcMetadataClaims,
+				vcMetadataClaims: claims as any,
 				fallbackName: "mdoc Verifiable Credential",
 		});
 		return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
@@ -188,15 +179,6 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 				fallbackName: "mdoc Verifiable Credential",
 			});
 
-			const vcMetadataClaims = claims
-			? Object.entries(claims).map(([claimKey, claimValue]) => {
-					const svgId = (claimValue as any).svg_id || claimKey;
-					return {
-						svg_id: svgId,
-						path: (claimValue as any).path
-					};
-				})
-			: [];
 			const dataUri = dataUriResolver({
 				httpClient: args.httpClient,
 				customRenderer: renderer,
@@ -204,7 +186,7 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 				signedClaims,
 				credentialDisplayArray: issuerDisplayArray as any,
 				vcRenderer: CredentialRenderingService(),
-				vcMetadataClaims: vcMetadataClaims,
+				vcMetadataClaims: claims as any,
 				fallbackName: "mdoc Verifiable Credential",
 		});
 
