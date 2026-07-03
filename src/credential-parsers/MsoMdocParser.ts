@@ -13,6 +13,8 @@ import { OpenidCredentialIssuerMetadataSchema, } from "../schemas";
 import { dataUriResolver } from "../resolvers/dataUriResolver";
 import { friendlyNameResolver } from "../resolvers/friendlyNameResolver";
 import type { IAuthZENClient } from "../authzen/AuthZENClient";
+import { CredentialRenderingService } from "../rendering";
+
 
 type IssuerMetadata = z.infer<typeof OpenidCredentialIssuerMetadataSchema>;
 
@@ -116,9 +118,11 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 			const issuerDisplayArray = credentialIssuer?.credentialConfigurationId
 				? issuerMetadata?.credential_configurations_supported?.[credentialIssuer.credentialConfigurationId]?.credential_metadata?.display
 				: undefined;
-
+			const claims = credentialIssuer?.credentialConfigurationId
+				? issuerMetadata?.credential_configurations_supported?.[credentialIssuer.credentialConfigurationId]?.credential_metadata?.claims
+				: undefined;
 			const friendlyName = friendlyNameResolver({
-				issuerDisplayArray,
+				issuerDisplayArray: issuerDisplayArray as any,
 				fallbackName: "mdoc Verifiable Credential",
 			});
 
@@ -126,10 +130,13 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 				httpClient: args.httpClient,
 				customRenderer: renderer,
 				issuerDisplayArray,
+				signedClaims,
+				credentialDisplayArray: issuerDisplayArray as any,
+				vcRenderer: CredentialRenderingService(),
+				vcMetadataClaims: claims as any,
 				fallbackName: "mdoc Verifiable Credential",
-			});
-
-			return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
+		});
+		return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
 		} catch {
 			return null;
 		}
@@ -164,9 +171,11 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 			const issuerDisplayArray = credentialIssuer?.credentialConfigurationId
 				? issuerMetadata?.credential_configurations_supported?.[credentialIssuer.credentialConfigurationId]?.credential_metadata?.display
 				: undefined;
-
+			const claims = credentialIssuer?.credentialConfigurationId
+				? issuerMetadata?.credential_configurations_supported?.[credentialIssuer.credentialConfigurationId]?.credential_metadata?.claims
+				: undefined;
 			const friendlyName = friendlyNameResolver({
-				issuerDisplayArray,
+				issuerDisplayArray: issuerDisplayArray as any,
 				fallbackName: "mdoc Verifiable Credential",
 			});
 
@@ -174,15 +183,18 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 				httpClient: args.httpClient,
 				customRenderer: renderer,
 				issuerDisplayArray,
+				signedClaims,
+				credentialDisplayArray: issuerDisplayArray as any,
+				vcRenderer: CredentialRenderingService(),
+				vcMetadataClaims: claims as any,
 				fallbackName: "mdoc Verifiable Credential",
-			});
+		});
 
-			return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
+		return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
 		} catch {
 			return null;
 		}
 	}
-
 	return {
 
 		async parse({ rawCredential, credentialIssuer }) {

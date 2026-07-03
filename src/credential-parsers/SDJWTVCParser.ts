@@ -174,8 +174,8 @@ export function SDJWTVCParser(args: { context: Context, httpClient: HttpClient, 
 				credentialDisplayArray: credentialMetadata?.display,
 				issuerDisplayArray: credentialIssuerMetadata?.credential_metadata?.display,
 
-				sdJwtVcRenderer: cr,
-				sdJwtVcMetadataClaims: credentialMetadata?.claims,
+				vcRenderer: cr,
+				vcMetadataClaims: credentialMetadata?.claims,
 				fallbackName: "SD-JWT Verifiable Credential",
 			});
 

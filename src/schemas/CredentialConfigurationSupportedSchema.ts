@@ -22,6 +22,7 @@ const OpenIdClaimSchema = z.object({
 	path: z.array(
 		z.union([z.string(), z.null(), z.number().int().nonnegative()])
 	).nonempty(),
+	svg_id: z.string().optional(),
 	mandatory: z.boolean().optional(),
 	display: z.array(
 		z.object({
@@ -43,6 +44,10 @@ const commonSchema = z.object({
 				uri: z.string()
 			}).optional(),
 			locale: z.string().optional(),
+			rendering :z.object({svg_templates: z.array(z.object({
+				uri: z.string(),
+				alt_text: z.string().optional(),
+			}))}).optional(),
 			logo: z.object({
 				uri: z.string(),
 				alt_text: z.string().optional(),
@@ -77,7 +82,7 @@ const sdJwtSchema = vcSdJwtSchema.or(dcSdJwtSchema);
 const msoDocSchema = commonSchema.extend({
 	format: z.literal(VerifiableCredentialFormat.MSO_MDOC),
 	doctype: z.string(),
-	credential_signing_alg_values_supported: z.array(z.number()).optional(),
+	credential_signing_alg_values_supported: z.array(z.string().or(z.number())).optional(),
 });
 
 
