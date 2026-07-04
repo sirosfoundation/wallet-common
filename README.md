@@ -1,25 +1,25 @@
-<img src="https://demo.wwwallet.org/wallet_192.png" width="80" style="max-width: 100%; float:left; margin-right: 20px;"/>
+# @sirosfoundation/wallet-common
 
+[![build](https://github.com/sirosfoundation/wallet-common/actions/workflows/build.yml/badge.svg)](https://github.com/sirosfoundation/wallet-common/actions/workflows/build.yml)
+[![License](https://img.shields.io/badge/license-BSD--2--Clause-blue)](LICENSE)
 
-# Wallet Common
+Reusable wallet components — credential parsing, rendering, verification, and OpenID4VP protocol support.
 
+## Install
 
-This library serves as a centralized collection of reusable component-functions that are shared across multiple software stacks. Its main goal is to promote consistency, reduce duplication and streamline development by providing well-tested, commonly used utilities and components in one place.
+```bash
+npm install @sirosfoundation/wallet-common
+```
 
-## Components
+## Features
 
-### Key Components
-
-- Credential Parsing
-- Credential Rendering
-- Credential Verification
-- Common type definitions
-- Common JSON schema definition for response validations
-
-
-### Interfaces
-
-The `interface.ts` file defines all the interfaces that are exported from this library.
+- **Credential Parsing** — SD-JWT-VC, mso_mdoc, JWT VC JSON
+- **Credential Rendering** — SVG-based credential display with custom templates
+- **Credential Verification** — pluggable verifier engine with X.509 certificate chain validation
+- **OpenID4VP** — client and server API for OpenID for Verifiable Presentations
+- **Schemas** — Zod schemas for OpenID credential issuer/authorization server metadata
+- **AuthZEN** — AuthZEN PDP client
+- **Common types** — shared interfaces and type definitions
 
 
 ## Development
