@@ -32,6 +32,7 @@ export const HandleAuthorizationRequestErrors = {
 	INVALID_TRANSACTION_DATA: "invalid_transaction_data",
 	INVALID_TYP: "invalid_jwt_typ",
 	COULD_NOT_RESOLVE_REQUEST: "could_not_resolve_request",
+	UNSUPPORTED_REQUEST_URI_METHOD: "unsupported_request_uri_method",
 } as const;
 
 export type HandleAuthorizationRequestError = typeof HandleAuthorizationRequestErrors[keyof typeof HandleAuthorizationRequestErrors];
@@ -244,6 +245,8 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 				? JSON.parse(searchParams.get("transaction_data") as string)
 				: null,
 			request_uri: searchParams.get("request_uri"),
+			// OID4VP 1.0 §5.1. Absent means `get`. DIIP v5 requires only `get`.
+			request_uri_method: searchParams.get("request_uri_method"),
 			dcql_query: searchParams.get("dcql_query")
 				? JSON.parse(searchParams.get("dcql_query") as string)
 				: null,
@@ -289,9 +292,13 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 		// Case 3: kid reference (possibly to a DID document)
 		const kid = parsedHeader.kid as string | undefined;
 		if (kid) {
+			// The client_id may carry the OID4VP `decentralized_identifier:` prefix, so take the
+			// bare DID from the parsed scheme rather than testing the raw value for a "did:" start.
+			const clientDid = clientId && parseClientIdScheme(clientId).scheme === "did"
+				? parseClientIdScheme(clientId).identifier
+				: null;
 			// Check if client_id is a DID or if kid starts with did:
-			const didToResolve = kid.startsWith("did:") ? kid.split("#")[0] :
-				(clientId?.startsWith("did:") ? clientId : null);
+			const didToResolve = kid.startsWith("did:") ? kid.split("#")[0] : clientDid;
 
 			if (didToResolve) {
 				// Need DID resolution
@@ -416,10 +423,17 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 		return null;
 	}
 
-	private async handleRequestUri(request_uri: string): Promise<
+	private async handleRequestUri(request_uri: string, request_uri_method?: string | null): Promise<
 		{ payload: Record<string, unknown>; parsedHeader: Record<string, unknown> } |
 		{ error: HandleAuthorizationRequestError }
 	> {
+		// OID4VP 1.0 §5.1 defines `get` and `post`; an absent value means `get`. DIIP v5
+		// mandates only `get`, and answering a `post` request with a GET would silently skip
+		// sending the wallet metadata the Verifier asked for — so reject it explicitly.
+		if (request_uri_method && request_uri_method.toLowerCase() !== "get") {
+			return { error: HandleAuthorizationRequestErrors.UNSUPPORTED_REQUEST_URI_METHOD };
+		}
+
 		const requestUriResponse = await this.deps.httpClient.get(request_uri, {});
 		if (typeof requestUriResponse.data !== "string") {
 			return { error: HandleAuthorizationRequestErrors.COULD_NOT_RESOLVE_REQUEST };
@@ -865,6 +879,7 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 			response_mode,
 			transaction_data,
 			request_uri,
+			request_uri_method,
 			dcql_query,
 		} = this.parseAuthorizationParams(url);
 
@@ -880,7 +895,7 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 
 		if (request_uri) {
 			try {
-				const result = await this.handleRequestUri(request_uri);
+				const result = await this.handleRequestUri(request_uri, request_uri_method);
 				if ("error" in result) {
 					return result;
 				}

@@ -50,8 +50,12 @@ export function isJwtVcJson(raw: string): boolean {
 }
 
 /**
- * Distinguish between VC-SD-JWT and DC-SD-JWT by inspecting the JWT header's "typ" field.
- * If the "typ" is "dc+sd-jwt", it's a DC-SD-JWT; otherwise, it's a VC-SD-JWT.
+ * Distinguish between the SD-JWT-based formats.
+ *
+ * A "dc+sd-jwt" typ is an SD-JWT VC. Otherwise the payload decides: VC-JOSE-COSE §3.2.1 secures a
+ * W3C VCDM 2.0 credential with the same "vc+sd-jwt" typ as the legacy SD-JWT VC format, and the
+ * two are told apart by their claims — a `vct` means SD-JWT VC, a JSON-LD `@context` without a
+ * `vct` means VCDM 2.0.
  */
 export function detectSdJwtVariant(raw: string): VerifiableCredentialFormat {
 	try {
@@ -62,5 +66,20 @@ export function detectSdJwtVariant(raw: string): VerifiableCredentialFormat {
 		const header = JSON.parse(decodedHeader);
 		if (header.typ === 'dc+sd-jwt') return VerifiableCredentialFormat.DC_SDJWT;
 	} catch {}
+
+	if (isW3CVcdmSdJwtPayload(raw)) return VerifiableCredentialFormat.W3C_VCDM_SDJWT;
 	return VerifiableCredentialFormat.VC_SDJWT;
+}
+
+/**
+ * Inspect an SD-JWT's payload for the W3C VCDM 2.0 shape: a JSON-LD `@context` and no `vct`.
+ */
+export function isW3CVcdmSdJwtPayload(raw: string): boolean {
+	try {
+		const [, rawPayload] = raw.split('~')[0].split('.');
+		const payload = JSON.parse(new TextDecoder().decode(base64url.decode(rawPayload)));
+		return payload['@context'] !== undefined && payload.vct === undefined;
+	} catch {
+		return false;
+	}
 }

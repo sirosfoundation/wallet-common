@@ -8,6 +8,7 @@ import { convertOpenid4vciToSdjwtvcClaims } from "../functions/convertOpenid4vci
 import { dataUriResolver } from "../resolvers/dataUriResolver";
 import { friendlyNameResolver } from "../resolvers/friendlyNameResolver";
 import { fromBase64Url } from "../utils";
+import { ValidityClaims, extractValidityInfo } from "../utils/credentialValidity";
 import type { IAuthZENClient } from "../authzen/AuthZENClient";
 
 export function JWTVCJSONParser(args: { context: Context, httpClient: HttpClient, authzenClient?: IAuthZENClient }): CredentialParser {
@@ -43,22 +44,6 @@ export function JWTVCJSONParser(args: { context: Context, httpClient: HttpClient
 		} catch {
 			return false;
 		}
-	}
-
-	function extractValidityInfo(payload: { exp?: number, iat?: number, nbf?: number }): {
-		validUntil?: Date, validFrom?: Date, signed?: Date
-	} {
-		const obj: { validUntil?: Date; validFrom?: Date; signed?: Date } = {};
-		if (payload.exp) {
-			obj.validUntil = new Date(payload.exp * 1000);
-		}
-		if (payload.iat) {
-			obj.signed = new Date(payload.iat * 1000);
-		}
-		if (payload.nbf) {
-			obj.validFrom = new Date(payload.nbf * 1000);
-		}
-		return obj;
 	}
 
 	return {
@@ -158,7 +143,7 @@ export function JWTVCJSONParser(args: { context: Context, httpClient: HttpClient
 						},
 					},
 					validityInfo: {
-						...extractValidityInfo(validatedPayload),
+						...extractValidityInfo(validatedPayload as ValidityClaims),
 					},
 					warnings: warnings.length > 0 ? warnings : undefined,
 				},

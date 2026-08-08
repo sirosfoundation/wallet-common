@@ -332,4 +332,70 @@ describe("parseClientIdScheme", () => {
 		assert(parsed.clientId === clientId);
 		assert(parsed.identifier === "did:web:verifier.example.com");
 	});
+
+	it("should parse a bare did: client ID as did scheme", () => {
+		const parsed = parseClientIdScheme("did:jwk:eyJrdHkiOiJFQyJ9");
+
+		assert(parsed.scheme === "did");
+		assert(parsed.identifier === "did:jwk:eyJrdHkiOiJFQyJ9");
+	});
+});
+
+describe("OpenID4VPServerAPI request_uri_method", () => {
+	// DIIP v5 requires support for the `get` value only. `post` must not be silently
+	// downgraded to a GET, which would drop the wallet metadata the Verifier asked for.
+	const buildHelper = (getSpy: () => Promise<{ data: unknown }>) => new OpenID4VPServerAPI({
+		evaluateTrust: mockEvaluateTrust,
+		httpClient: { get: getSpy },
+		rpStateStore: { store: async () => { }, retrieve: async () => null },
+		parseCredential: async () => null,
+		selectCredentialForBatch: async () => null,
+		keystore: {
+			signJwtPresentation: async () => ({ vpjwt: "vp-jwt" }),
+			generateDeviceResponse: async () => ({ deviceResponseMDoc: {} }),
+		},
+		strings: { purposeNotSpecified: "No purpose provided", allClaimsRequested: "All claims" },
+	});
+
+	const requestUrl = (method?: string) => {
+		const url = new URL("openid4vp://authorize");
+		url.searchParams.set("client_id", "decentralized_identifier:did:web:verifier.example.com");
+		url.searchParams.set("request_uri", "https://verifier.example.com/request/1");
+		if (method) {
+			url.searchParams.set("request_uri_method", method);
+		}
+		return url.toString();
+	};
+
+	it("rejects request_uri_method=post without fetching the request object", async () => {
+		let called = false;
+		const helper = buildHelper(async () => { called = true; return { data: "" }; });
+
+		const result = await helper.handleAuthorizationRequest(requestUrl("post"), []);
+
+		assert("error" in result);
+		assert(result.error === "unsupported_request_uri_method");
+		assert(called === false);
+	});
+
+	it("fetches the request object when request_uri_method is get", async () => {
+		let requestedUrl: string | null = null;
+		const helper = buildHelper(async () => { requestedUrl = "https://verifier.example.com/request/1"; return { data: 123 }; });
+
+		// The stub returns a non-string body, so resolution fails after the GET is attempted —
+		// which is all this assertion needs to establish.
+		const result = await helper.handleAuthorizationRequest(requestUrl("get"), []);
+
+		assert("error" in result);
+		assert(requestedUrl === "https://verifier.example.com/request/1");
+	});
+
+	it("treats an absent request_uri_method as get", async () => {
+		let called = false;
+		const helper = buildHelper(async () => { called = true; return { data: 123 }; });
+
+		await helper.handleAuthorizationRequest(requestUrl(), []);
+
+		assert(called === true);
+	});
 });
