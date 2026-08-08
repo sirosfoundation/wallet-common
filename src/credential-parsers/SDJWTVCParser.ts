@@ -15,6 +15,7 @@ import { dataUriResolver } from "../resolvers/dataUriResolver";
 import { friendlyNameResolver } from "../resolvers/friendlyNameResolver";
 import { renderingResolver } from "../resolvers/renderingResolver";
 import { fromBase64, fromBase64Url } from "../utils";
+import { ValidityClaims, extractValidityInfo } from "../utils/credentialValidity";
 import type { IAuthZENClient } from "../authzen/AuthZENClient";
 
 export function SDJWTVCParser(args: { context: Context, httpClient: HttpClient, authzenClient?: IAuthZENClient }): CredentialParser {
@@ -33,30 +34,6 @@ export function SDJWTVCParser(args: { context: Context, httpClient: HttpClient, 
 
 		}
 		return false;
-	}
-
-	function extractValidityInfo(jwtPayload: { exp?: number, iat?: number, nbf?: number }): { validUntil?: Date, validFrom?: Date, signed?: Date } {
-		let obj = {};
-		if (jwtPayload.exp) {
-			obj = {
-				...obj,
-				validUntil: new Date(jwtPayload.exp * 1000),
-			}
-		}
-		if (jwtPayload.iat) {
-			obj = {
-				...obj,
-				signed: new Date(jwtPayload.iat * 1000),
-			}
-		}
-
-		if (jwtPayload.nbf) {
-			obj = {
-				...obj,
-				validFrom: new Date(jwtPayload.nbf * 1000),
-			}
-		}
-		return obj;
 	}
 
 	// Encoding the string into a Uint8Array
@@ -213,7 +190,7 @@ export function SDJWTVCParser(args: { context: Context, httpClient: HttpClient, 
 						}
 					},
 					validityInfo: {
-						...extractValidityInfo(validatedParsedClaims)
+						...extractValidityInfo(validatedParsedClaims as ValidityClaims)
 					},
 					warnings: getSdJwtMetadataResult.warnings
 				}

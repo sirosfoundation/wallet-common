@@ -332,4 +332,11 @@ describe("parseClientIdScheme", () => {
 		assert(parsed.clientId === clientId);
 		assert(parsed.identifier === "did:web:verifier.example.com");
 	});
+
+	it("should parse a bare did: client ID as did scheme", () => {
+		const parsed = parseClientIdScheme("did:jwk:eyJrdHkiOiJFQyJ9");
+
+		assert(parsed.scheme === "did");
+		assert(parsed.identifier === "did:jwk:eyJrdHkiOiJFQyJ9");
+	});
 });

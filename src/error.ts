@@ -67,6 +67,12 @@ export enum CredentialVerificationError {
 	VctRegistryNotConfigured = "VctRegistryNotConfigured",
 
 	ExpiredCredential = "ExpiredCredential",
+	/** `validFrom` / `nbf` lies in the future (DIIP v5 validity algorithm). */
+	NotYetValidCredential = "NotYetValidCredential",
+
+	// IETF Token Status List
+	RevokedCredential = "RevokedCredential",
+	SuspendedCredential = "SuspendedCredential",
 
 	CannotImportHolderPublicKey = "CannotImportHolderPublicKey",
 	CannotExtractHolderPublicKey = "CannotExtractHolderPublicKey",

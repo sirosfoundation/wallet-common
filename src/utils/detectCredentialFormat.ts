@@ -62,5 +62,7 @@ export function detectSdJwtVariant(raw: string): VerifiableCredentialFormat {
 		const header = JSON.parse(decodedHeader);
 		if (header.typ === 'dc+sd-jwt') return VerifiableCredentialFormat.DC_SDJWT;
 	} catch {}
+
 	return VerifiableCredentialFormat.VC_SDJWT;
 }
+
