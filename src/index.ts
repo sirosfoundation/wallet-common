@@ -6,6 +6,7 @@ export * from './ParsingEngine';
 export * from './credential-parsers/SDJWTVCParser';
 export * from './credential-parsers/MsoMdocParser';
 export * from './credential-parsers/JWTVCJSONParser';
+export * from './credential-parsers/VCDMSDJWTParser';
 
 export * from './VerifyingEngine';
 export * from './credential-verifiers/SDJWTVCVerifier';

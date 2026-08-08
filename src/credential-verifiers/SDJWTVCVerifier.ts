@@ -6,10 +6,14 @@ import { CustomResult } from "../types";
 import { importJWK, importX509, JWK, jwtVerify, KeyLike } from "jose";
 import { fromBase64Url, toBase64Url } from "../utils/util";
 import { verifyCertificate } from "../utils/verifyCertificate";
+import { createDidResolver, findPublicKeyInDidDocument } from "../resolvers/didResolver";
+import { createValidityAndStatusChecker, resolveIssuerIdentifier } from "./checkValidityAndStatus";
 
 type ParsedSdJwtVcWithPrettyClaims = Record<string, unknown> & {
 	cnf?: {
 		jwk?: JWK;
+		/** DIIP v5 binds the holder by a `kid` pointing into their DID document's `authentication`. */
+		kid?: string;
 	};
 };
 
@@ -21,6 +25,29 @@ export function SDJWTVCVerifier(args: { context: Context, pkResolverEngine: Publ
 
 	const encoder = new TextEncoder();
 	const decoder = new TextDecoder();
+
+	const resolveDid = createDidResolver({ httpClient: args.httpClient });
+	const checkValidityAndStatus = createValidityAndStatusChecker(args);
+
+	/**
+	 * Resolve the holder's public key from a `cnf` claim. DIIP v5 binds the holder via a
+	 * `cnf.kid` DID URL into the holder's `authentication` relationship; the wwWallet-native
+	 * `cnf.jwk` form stays supported so already-issued credentials keep verifying.
+	 */
+	const resolveHolderJwkFromCnf = async (cnf: ParsedSdJwtVcWithPrettyClaims["cnf"]): Promise<JWK | null> => {
+		if (cnf?.jwk) {
+			return cnf.jwk;
+		}
+		if (!cnf?.kid || !cnf.kid.startsWith("did:")) {
+			return null;
+		}
+		const did = cnf.kid.split("#")[0];
+		const resolution = await resolveDid(did);
+		if (!resolution.resolved || !resolution.didDocument) {
+			return null;
+		}
+		return findPublicKeyInDidDocument(resolution.didDocument, cnf.kid, "authentication");
+	};
 
 	// Encoding the string into a Uint8Array
 	const hasherAndAlgorithm: HasherAndAlg = {
@@ -57,10 +84,11 @@ export function SDJWTVCVerifier(args: { context: Context, pkResolverEngine: Publ
 			}
 		}
 		const cnf = parseResult.parsedSdJwtWithPrettyClaims.cnf;
+		const holderJwk = await resolveHolderJwkFromCnf(cnf);
 
-		if (cnf?.jwk && parseResult.credential.jwt && parseResult.credential.jwt.header && typeof parseResult.credential.jwt.header["alg"] === 'string') {
+		if (holderJwk && parseResult.credential.jwt && parseResult.credential.jwt.header && typeof parseResult.credential.jwt.header["alg"] === 'string') {
 			try {
-				const holderPublicKey = await importJWK(cnf.jwk, parseResult.credential.jwt.header["alg"]);
+				const holderPublicKey = await importJWK(holderJwk, parseResult.credential.jwt.header["alg"]);
 				return {
 					success: true,
 					value: holderPublicKey,
@@ -143,8 +171,14 @@ export function SDJWTVCVerifier(args: { context: Context, pkResolverEngine: Publ
 					}
 				}
 			}
-			if (parsedSdJwt && parsedSdJwt.payload && typeof parsedSdJwt.payload.iss === 'string' && typeof alg === 'string') {
-				const publicKeyResolutionResult = await args.pkResolverEngine.resolve({ identifier: parsedSdJwt.payload.iss });
+			// SD-JWT VC identifies the issuer by `iss`; a W3C VCDM 2.0 credential secured with
+			// SD-JWT uses the VCDM `issuer` property instead, which may be a string or an object.
+			const issuerIdentifier = parsedSdJwt?.payload ? resolveIssuerIdentifier(parsedSdJwt.payload) : null;
+
+			if (issuerIdentifier && typeof alg === 'string') {
+				// The `kid` narrows which verification method of a DID document signed the credential.
+				const kid = typeof parsedSdJwt?.header?.kid === 'string' ? parsedSdJwt.header.kid : undefined;
+				const publicKeyResolutionResult = await args.pkResolverEngine.resolve({ identifier: issuerIdentifier, kid });
 				if (!publicKeyResolutionResult.success) {
 					logError(CredentialVerificationError.CannotResolveIssuerPublicKey, "CannotResolveIssuerPublicKey");
 					return {
@@ -316,7 +350,22 @@ export function SDJWTVCVerifier(args: { context: Context, pkResolverEngine: Publ
 			// importing and re-exporting through Web Crypto (jose importJWK
 			// creates non-extractable CryptoKeys in browsers by default).
 			const parseResult = await parse(rawCredential);
-			if (parseResult === CredentialVerificationError.InvalidFormat || !parseResult.parsedSdJwtWithPrettyClaims.cnf?.jwk) {
+
+			// DIIP v5 validity and revocation algorithm. `jwtVerify` above already rejects a
+			// stale `exp`, but not a VCDM-style `validUntil`, a `validFrom` in the future, or a
+			// revoked entry in the issuer's Token Status List.
+			if (parseResult !== CredentialVerificationError.InvalidFormat) {
+				const statusError = await checkValidityAndStatus(parseResult.parsedSdJwtWithPrettyClaims);
+				if (statusError) {
+					logError(statusError, `Credential validity/status check failed: ${statusError}`);
+					return { success: false, error: statusError };
+				}
+			}
+
+			const holderPublicKey = parseResult === CredentialVerificationError.InvalidFormat
+				? null
+				: await resolveHolderJwkFromCnf(parseResult.parsedSdJwtWithPrettyClaims.cnf);
+			if (!holderPublicKey) {
 				logError(CredentialVerificationError.CannotExtractHolderPublicKey, "Could not extract holder public key");
 				return {
 					success: false,
@@ -328,7 +377,7 @@ export function SDJWTVCVerifier(args: { context: Context, pkResolverEngine: Publ
 				success: true,
 				value: {
 					valid: true,
-					holderPublicKey: parseResult.parsedSdJwtWithPrettyClaims.cnf.jwk,
+					holderPublicKey,
 				},
 			}
 		},

@@ -5,7 +5,16 @@ export enum VerifiableCredentialFormat {
 	VC_SDJWT = "vc+sd-jwt",
 	DC_SDJWT = "dc+sd-jwt",
 	MSO_MDOC = "mso_mdoc",
-	JWT_VC_JSON = "jwt_vc_json"
+	JWT_VC_JSON = "jwt_vc_json",
+	/**
+	 * A W3C VCDM 2.0 credential secured with SD-JWT, as required by DIIP v5.
+	 *
+	 * VC-JOSE-COSE §3.2.1 gives these the `typ` header `vc+sd-jwt` — the same string as the
+	 * legacy SD-JWT VC format above — so this member carries a distinct value and the two are
+	 * told apart by payload shape instead: a `vct` claim means SD-JWT VC, while `@context`
+	 * without a `vct` means VCDM 2.0. See `detectCredentialFormat`.
+	 */
+	W3C_VCDM_SDJWT = "w3c_vcdm_sd_jwt",
 }
 
 export type CredentialIssuer = {
@@ -78,6 +87,17 @@ export type ParsedCredential = {
 		} | {
 			format: VerifiableCredentialFormat.JWT_VC_JSON,
 			type: string[],
+			name: FriendlyNameCallback,
+			TypeMetadata: TypeMetadataResult,
+			image: {
+				dataUri: ImageDataUriCallback,
+			},
+		} | {
+			format: VerifiableCredentialFormat.W3C_VCDM_SDJWT,
+			/** The credential's `type` array, e.g. `["VerifiableCredential", "OpenBadgeCredential"]`. */
+			type: string[],
+			/** The JSON-LD `@context` the credential declares. */
+			context: string[],
 			name: FriendlyNameCallback,
 			TypeMetadata: TypeMetadataResult,
 			image: {

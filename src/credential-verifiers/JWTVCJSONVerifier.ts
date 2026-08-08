@@ -4,6 +4,7 @@ import { CustomResult, VerifiableCredentialFormat } from "../types";
 import { importJWK, importX509, JWK, jwtVerify, KeyLike } from "jose";
 import { fromBase64Url } from "../utils/util";
 import { verifyCertificate } from "../utils/verifyCertificate";
+import { createValidityAndStatusChecker } from "./checkValidityAndStatus";
 
 export function JWTVCJSONVerifier(args: { context: Context, pkResolverEngine: PublicKeyResolverEngineI, httpClient: HttpClient }): CredentialVerifier {
 	let errors: { error: CredentialVerificationError, message: string }[] = [];
@@ -12,6 +13,7 @@ export function JWTVCJSONVerifier(args: { context: Context, pkResolverEngine: Pu
 	}
 
 	const decoder = new TextDecoder();
+	const checkValidityAndStatus = createValidityAndStatusChecker(args);
 
 	function canVerifyJwtVcJson(raw: unknown): raw is string {
 		if (typeof raw !== "string") return false;
@@ -117,7 +119,9 @@ export function JWTVCJSONVerifier(args: { context: Context, pkResolverEngine: Pu
 
 			// Try kid / iss resolution via public key resolver
 			if (typeof payload.iss === "string" && typeof alg === "string") {
-				const publicKeyResolutionResult = await args.pkResolverEngine.resolve({ identifier: payload.iss });
+				// The `kid` narrows which verification method of a DID document signed the credential.
+				const kid = typeof header.kid === "string" ? header.kid : undefined;
+				const publicKeyResolutionResult = await args.pkResolverEngine.resolve({ identifier: payload.iss, kid });
 				if (!publicKeyResolutionResult.success) {
 					logError(CredentialVerificationError.CannotResolveIssuerPublicKey, "CannotResolveIssuerPublicKey");
 					return { success: false, error: CredentialVerificationError.CannotResolveIssuerPublicKey };
@@ -180,16 +184,25 @@ export function JWTVCJSONVerifier(args: { context: Context, pkResolverEngine: Pu
 			// importing and re-exporting through Web Crypto (jose importJWK
 			// creates non-extractable CryptoKeys in browsers by default).
 			const parts = rawCredential.split(".");
-			let holderJwk: JWK = {} as JWK;
+			let payload: Record<string, unknown> | null = null;
 			try {
-				const payload = JSON.parse(decoder.decode(fromBase64Url(parts[1])));
-				const cnf = payload.cnf as { jwk?: JWK } | undefined;
-				if (cnf?.jwk) {
-					holderJwk = cnf.jwk;
-				}
+				payload = JSON.parse(decoder.decode(fromBase64Url(parts[1])));
 			} catch {
-				// Holder binding is optional for jwt_vc_json
+				// The signature already verified, so an unreadable payload here is not expected;
+				// fall through with no holder binding, which is optional for jwt_vc_json.
 			}
+
+			// DIIP v5 validity and revocation algorithm — see SDJWTVCVerifier for the rationale.
+			if (payload) {
+				const statusError = await checkValidityAndStatus(payload);
+				if (statusError) {
+					logError(statusError, `Credential validity/status check failed: ${statusError}`);
+					return { success: false, error: statusError };
+				}
+			}
+
+			const cnf = payload?.cnf as { jwk?: JWK } | undefined;
+			const holderJwk: JWK = cnf?.jwk ?? ({} as JWK);
 
 			return {
 				success: true,

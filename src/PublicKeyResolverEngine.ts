@@ -8,9 +8,9 @@ export function PublicKeyResolverEngine(): PublicKeyResolverEngineI {
 		register(resolver: PublicKeyResolver) {
 			resolvers.push(resolver);
 		},
-		async resolve({ identifier }: { identifier: string }) {
+		async resolve({ identifier, kid }: { identifier: string, kid?: string }) {
 			for (const r of resolvers) {
-				const result = await r.resolve({ identifier });
+				const result = await r.resolve({ identifier, kid });
 				if (result.success) {
 					return result;
 				}
