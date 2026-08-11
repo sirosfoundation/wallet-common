@@ -2,7 +2,7 @@ import { CredentialParsingError } from "../error";
 import { Context, CredentialParser, HttpClient, CredentialIssuerInfo } from "../interfaces";
 import { DataItem, DeviceSignedDocument, parse } from "@auth0/mdl";
 import { fromBase64Url } from "../utils/util";
-import { FriendlyNameCallback, ImageDataUriCallback, ParsedCredential, VerifiableCredentialFormat, TypeMetadataResult } from "../types";
+import { FriendlyNameCallback, ImageDataUriCallback, ParsedCredential, VerifiableCredentialFormat, TypeMetadataResult, RenderingCallback } from "../types";
 import { cborDecode, cborEncode } from "@auth0/mdl/lib/cbor";
 import { IssuerSigned } from "@auth0/mdl/lib/mdoc/model/types";
 import { CustomCredentialSvg } from "../functions/CustomCredentialSvg";
@@ -12,6 +12,7 @@ import type { z } from "zod";
 import { OpenidCredentialIssuerMetadataSchema, } from "../schemas";
 import { dataUriResolver } from "../resolvers/dataUriResolver";
 import { friendlyNameResolver } from "../resolvers/friendlyNameResolver";
+import { renderingResolver } from "../resolvers/renderingResolver";
 import type { IAuthZENClient } from "../authzen/AuthZENClient";
 import { CredentialRenderingService } from "../rendering";
 
@@ -81,7 +82,8 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 		signedClaims: Record<string, unknown>,
 		TypeMetadata: TypeMetadataResult,
 		friendlyName: FriendlyNameCallback,
-		dataUri: ImageDataUriCallback
+		dataUri: ImageDataUriCallback,
+		rendering: RenderingCallback
 	): ParsedCredential {
 		return {
 			metadata: {
@@ -90,6 +92,7 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 					doctype: parsedDocument.docType,
 					TypeMetadata,
 					image: { dataUri },
+					rendering,
 					name: friendlyName
 				},
 				issuer: {
@@ -136,7 +139,10 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 				vcMetadataClaims: claims as any,
 				fallbackName: "mdoc Verifiable Credential",
 		});
-		return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
+
+		const rendering = renderingResolver({ issuerDisplayArray: issuerDisplayArray as any });
+
+		return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri, rendering);
 		} catch {
 			return null;
 		}
@@ -190,7 +196,9 @@ export function MsoMdocParser(args: { context: Context, httpClient: HttpClient, 
 				fallbackName: "mdoc Verifiable Credential",
 		});
 
-		return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri);
+		const rendering = renderingResolver({ issuerDisplayArray: issuerDisplayArray as any });
+
+		return toParsedCredential(parsedDocument, signedClaims, TypeMetadata, friendlyName, dataUri, rendering);
 		} catch {
 			return null;
 		}
