@@ -13,6 +13,7 @@ import { TypeMetadata as TypeMetadataSchema } from "../schemas/SdJwtVcTypeMetada
 import { convertOpenid4vciToSdjwtvcClaims } from "../functions/convertOpenid4vciToSdjwtvcClaims";
 import { dataUriResolver } from "../resolvers/dataUriResolver";
 import { friendlyNameResolver } from "../resolvers/friendlyNameResolver";
+import { renderingResolver } from "../resolvers/renderingResolver";
 import { fromBase64, fromBase64Url } from "../utils";
 import type { IAuthZENClient } from "../authzen/AuthZENClient";
 
@@ -179,6 +180,11 @@ export function SDJWTVCParser(args: { context: Context, httpClient: HttpClient, 
 				fallbackName: "SD-JWT Verifiable Credential",
 			});
 
+			const rendering = renderingResolver({
+				credentialDisplayArray: credentialMetadata?.display,
+				issuerDisplayArray: credentialIssuerMetadata?.credential_metadata?.display,
+			});
+
 			if (!TypeMetadata?.claims && credentialIssuerMetadata?.credential_metadata?.claims) {
 				const convertedClaims = convertOpenid4vciToSdjwtvcClaims(credentialIssuerMetadata.credential_metadata.claims);
 				if (convertedClaims?.length) {
@@ -198,6 +204,7 @@ export function SDJWTVCParser(args: { context: Context, httpClient: HttpClient, 
 							image: {
 								dataUri: dataUri,
 							},
+							rendering: rendering,
 							name: friendlyName,
 						},
 						issuer: {

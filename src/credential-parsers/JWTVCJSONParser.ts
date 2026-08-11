@@ -7,6 +7,7 @@ import { getIssuerMetadata } from "../utils/getIssuerMetadata";
 import { convertOpenid4vciToSdjwtvcClaims } from "../functions/convertOpenid4vciToSdjwtvcClaims";
 import { dataUriResolver } from "../resolvers/dataUriResolver";
 import { friendlyNameResolver } from "../resolvers/friendlyNameResolver";
+import { renderingResolver } from "../resolvers/renderingResolver";
 import { fromBase64Url } from "../utils";
 import type { IAuthZENClient } from "../authzen/AuthZENClient";
 
@@ -138,6 +139,8 @@ export function JWTVCJSONParser(args: { context: Context, httpClient: HttpClient
 				fallbackName: "JWT Verifiable Credential",
 			});
 
+			const rendering = renderingResolver({ issuerDisplayArray });
+
 			return {
 				success: true,
 				value: {
@@ -150,6 +153,7 @@ export function JWTVCJSONParser(args: { context: Context, httpClient: HttpClient
 							image: {
 								dataUri: dataUri,
 							},
+							rendering: rendering,
 							name: friendlyName,
 						},
 						issuer: {

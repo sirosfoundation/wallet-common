@@ -48,6 +48,16 @@ export type ImageDataUriCallback = (
 	preferredLangs?: string[]
 ) => Promise<string | null>;
 
+export type CredentialRenderingInfo = {
+	backgroundColor?: string;
+	textColor?: string;
+	logo?: string;
+};
+
+export type RenderingCallback = (
+	preferredLangs?: string[]
+) => Promise<CredentialRenderingInfo | null>;
+
 
 export type AugmentedClaimMetadataEntry = ClaimMetadataEntry & {
 	required?: boolean;
@@ -67,6 +77,7 @@ export type ParsedCredential = {
 			image: {
 				dataUri: ImageDataUriCallback,
 			},
+			rendering: RenderingCallback,
 		} | {
 			format: VerifiableCredentialFormat.MSO_MDOC,
 			doctype: string,
@@ -75,6 +86,7 @@ export type ParsedCredential = {
 			image: {
 				dataUri: ImageDataUriCallback,
 			},
+			rendering: RenderingCallback,
 		} | {
 			format: VerifiableCredentialFormat.JWT_VC_JSON,
 			type: string[],
@@ -83,6 +95,7 @@ export type ParsedCredential = {
 			image: {
 				dataUri: ImageDataUriCallback,
 			},
+			rendering: RenderingCallback,
 		},
 		issuer: CredentialIssuer,
 	},
