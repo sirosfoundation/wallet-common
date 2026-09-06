@@ -311,3 +311,77 @@ describe("getSdJwtVcTypeMetadata - failure cases", () => {
 	});
 
 });
+
+/**
+ * The plumbing, end to end: a type metadata document served pretty-printed,
+ * with the digest its issuer computed over exactly those bytes.
+ *
+ * Before the raw body was threaded through, this reported IntegrityFail - the
+ * wallet hashed a re-serialisation of its own parse, which drops the
+ * whitespace. Correct metadata, reported as tampered with.
+ */
+describe("getSdJwtVcMetadata - integrity over the bytes as served", () => {
+	const prettyVct = "https://issuer.com/pretty.json";
+	const prettyMetadata = {
+		vct: prettyVct,
+		display: [{ locale: "en-US", name: "Pretty Credential" }],
+	};
+	const servedBytes = JSON.stringify(prettyMetadata, null, 2);
+	const servedIntegrity = `sha256-${crypto.createHash("sha256").update(servedBytes, "utf8").digest("base64")}`;
+
+	function clientServing(raw: string | undefined): HttpClient {
+		return {
+			get: async (url: string) => {
+				if (url.endsWith("pretty.json")) {
+					return { status: 200, data: JSON.parse(servedBytes), headers: {}, raw };
+				}
+				return { status: 404, data: null, headers: {} };
+			},
+			post: async () => { throw new Error("POST not implemented"); },
+		};
+	}
+
+	const context = { subtle: crypto.webcrypto.subtle } as unknown as Context;
+
+	it("accepts a pretty-printed document when the raw body is available", async () => {
+		const result = await getSdJwtVcMetadata(
+			undefined,
+			context.subtle,
+			clientServing(servedBytes),
+			prettyVct,
+			servedIntegrity,
+		);
+		expect("error" in result).toBe(false);
+		if (!("error" in result)) {
+			expect(result.warnings.some(w => w.code === "IntegrityFail")).toBe(false);
+		}
+	});
+
+	it("still reports a real mismatch", async () => {
+		const result = await getSdJwtVcMetadata(
+			undefined,
+			context.subtle,
+			clientServing(servedBytes),
+			prettyVct,
+			"sha256-ZG9lcyBub3QgbWF0Y2ggYW55dGhpbmcgYXQgYWxsAAAAAAA=",
+		);
+		if (!("error" in result)) {
+			expect(result.warnings.some(w => w.code === "IntegrityFail")).toBe(true);
+		}
+	});
+
+	it("falls back to the parsed object when a client supplies no raw body", async () => {
+		// Documented behaviour for implementations that predate `raw`: the
+		// compact case still verifies, the pretty-printed one cannot.
+		const result = await getSdJwtVcMetadata(
+			undefined,
+			context.subtle,
+			clientServing(undefined),
+			prettyVct,
+			servedIntegrity,
+		);
+		if (!("error" in result)) {
+			expect(result.warnings.some(w => w.code === "IntegrityFail")).toBe(true);
+		}
+	});
+});

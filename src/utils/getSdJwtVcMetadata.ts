@@ -1,5 +1,5 @@
 import { HttpClient } from '../interfaces';
-import { verifySRIFromObject } from './verifySRIFromObject';
+import { verifySRI } from './verifySRIFromObject';
 import { MetadataError, MetadataWarning } from '../types';
 import { CredentialParsingError, isCredentialParsingWarnings } from '../error';
 import { TypeMetadata as TypeMetadataSchema } from "../schemas/SdJwtVcTypeMetadataSchema";
@@ -118,6 +118,10 @@ async function fetchAndMergeMetadata(
 	visited.add(metadataId);
 
 	let metadata: TypeMetadataSchema | undefined;
+	// The body exactly as served, when the source could provide it. Integrity
+	// digests are defined over these octets; re-serialising the parse is a
+	// fallback that only reproduces them for a compact document.
+	let rawMetadata: string | undefined;
 
 	// Registry
 	if (vctResolutionEngine) {
@@ -132,7 +136,9 @@ async function fetchAndMergeMetadata(
 
 	// HTTP (only if valid URL)
 	if (!metadata && isValidHttpUrl(metadataId)) {
-		const res = await httpClient.get(metadataId, {}, { useCache: true });
+		// wantRaw only when there is a digest to check against: it changes how
+		// the body is parsed, and no other caller needs that.
+		const res = await httpClient.get(metadataId, {}, { useCache: true, wantRaw: Boolean(integrity) });
 
 		if (
 			res &&
@@ -149,6 +155,7 @@ async function fetchAndMergeMetadata(
 
 			} else {
 				metadata = validated.data as TypeMetadataSchema;
+				rawMetadata = res.raw;
 			}
 		}
 	}
@@ -156,7 +163,7 @@ async function fetchAndMergeMetadata(
 	if (!metadata) return undefined;
 
 	if (integrity) {
-		const isValid = await verifySRIFromObject(subtle, metadata, integrity);
+		const isValid = await verifySRI(subtle, rawMetadata ?? metadata, integrity);
 		if (!isValid) {
 			const resultCode = handleMetadataCode(CredentialParsingError.IntegrityFail, warnings);
 			if (resultCode) return resultCode;
