@@ -5,7 +5,16 @@ export enum VerifiableCredentialFormat {
 	VC_SDJWT = "vc+sd-jwt",
 	DC_SDJWT = "dc+sd-jwt",
 	MSO_MDOC = "mso_mdoc",
-	JWT_VC_JSON = "jwt_vc_json"
+	JWT_VC_JSON = "jwt_vc_json",
+
+	// W3C VCDM 2.0 secured with an enveloping JOSE proof (VC-JOSE-COSE).
+	// The JWT payload *is* the credential — there is no `vc` wrapper claim,
+	// which is what distinguishes it from JWT_VC_JSON (VCDM 1.1).
+	VCDM2_JOSE = "vc+jwt",
+
+	// W3C VCDM 2.0 secured with an embedded Data Integrity proof.
+	// The credential is a JSON-LD object carrying its own `proof` member.
+	LDP_VC = "ldp_vc"
 }
 
 export type CredentialIssuer = {
@@ -89,6 +98,19 @@ export type ParsedCredential = {
 			rendering: RenderingCallback,
 		} | {
 			format: VerifiableCredentialFormat.JWT_VC_JSON,
+			type: string[],
+			name: FriendlyNameCallback,
+			TypeMetadata: TypeMetadataResult,
+			image: {
+				dataUri: ImageDataUriCallback,
+			},
+			rendering: RenderingCallback,
+		} | {
+			// W3C VCDM 2.0, either enveloped in a JWS (VC-JOSE-COSE) or
+			// carrying an embedded Data Integrity proof. Both are described
+			// by the credential's `type` array, as VCDM 1.1 is — neither has
+			// an SD-JWT `vct` or an mdoc `doctype`.
+			format: VerifiableCredentialFormat.VCDM2_JOSE | VerifiableCredentialFormat.LDP_VC,
 			type: string[],
 			name: FriendlyNameCallback,
 			TypeMetadata: TypeMetadataResult,
