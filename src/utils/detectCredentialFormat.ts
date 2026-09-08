@@ -1,6 +1,6 @@
 import { base64url } from 'jose';
 import { VerifiableCredentialFormat } from '../types';
-import { coerceCredentialObject, isVcdm2Credential, looksLikeEnvelopedVcdm2 } from './vcdm2';
+import { coerceCredentialObject, decodeVcdm2SdJwt, isVcdm2Credential, looksLikeEnvelopedVcdm2 } from './vcdm2';
 
 /**
  * Detects the format of a verifiable credential based on its raw string representation.
@@ -13,6 +13,10 @@ import { coerceCredentialObject, isVcdm2Credential, looksLikeEnvelopedVcdm2 } fr
 export function detectCredentialFormat(raw: string): VerifiableCredentialFormat | null {
 	if (isMdoc(raw)) return VerifiableCredentialFormat.MSO_MDOC;
 	if (isLdpVc(raw)) return VerifiableCredentialFormat.LDP_VC;
+	// Before the generic SD-JWT check: a VCDM 2.0 credential carried in an
+	// SD-JWT shares the `vc+sd-jwt` type with legacy SD-JWT VC, and is told
+	// apart by its payload rather than its header.
+	if (decodeVcdm2SdJwt(raw) !== null) return VerifiableCredentialFormat.VCDM2_SDJWT;
 	if (isSdJwt(raw)) return detectSdJwtVariant(raw);
 	if (looksLikeEnvelopedVcdm2(raw)) return VerifiableCredentialFormat.VCDM2_JOSE;
 	if (isJwtVcJson(raw)) return VerifiableCredentialFormat.JWT_VC_JSON;

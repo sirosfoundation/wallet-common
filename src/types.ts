@@ -12,8 +12,21 @@ export enum VerifiableCredentialFormat {
 	// which is what distinguishes it from JWT_VC_JSON (VCDM 1.1).
 	VCDM2_JOSE = "vc+jwt",
 
+	// W3C VCDM 2.0 carried inside an SD-JWT, as DIIP v5 specifies. The
+	// issuer-signed JWT's payload is the credential; there is no `vct`,
+	// because this is a plain SD-JWT rather than an SD-JWT VC. OpenID4VCI
+	// advertises it as `vc+sd-jwt`, which collides with legacy SD-JWT VC —
+	// the two are told apart by the payload, not the format identifier, so
+	// this enum uses a distinct internal value.
+	VCDM2_SDJWT = "vcdm2+sd-jwt",
+
 	// W3C VCDM 2.0 secured with an embedded Data Integrity proof.
-	// The credential is a JSON-LD object carrying its own `proof` member.
+	//
+	// `ldp_vc` is OpenID4VCI's identifier for a JSON-LD credential with an
+	// embedded proof. The spec associates it with VCDM 1.1, so treating it
+	// as "VCDM 2.0 with an embedded proof" conflates a format identifier
+	// with a securing mechanism; it is used here because OpenID4VCI offers
+	// no better identifier for what our own issuer emits.
 	LDP_VC = "ldp_vc"
 }
 
@@ -110,7 +123,7 @@ export type ParsedCredential = {
 			// carrying an embedded Data Integrity proof. Both are described
 			// by the credential's `type` array, as VCDM 1.1 is — neither has
 			// an SD-JWT `vct` or an mdoc `doctype`.
-			format: VerifiableCredentialFormat.VCDM2_JOSE | VerifiableCredentialFormat.LDP_VC,
+			format: VerifiableCredentialFormat.VCDM2_JOSE | VerifiableCredentialFormat.LDP_VC | VerifiableCredentialFormat.VCDM2_SDJWT,
 			type: string[],
 			name: FriendlyNameCallback,
 			TypeMetadata: TypeMetadataResult,

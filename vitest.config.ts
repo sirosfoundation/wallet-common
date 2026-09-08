@@ -10,8 +10,10 @@ import { defineConfig } from 'vitest/config';
 export const VCDM2_FILES = [
 	'src/credential-parsers/VCDM2JoseParser.ts',
 	'src/credential-parsers/VCDM2LdpParser.ts',
+	'src/credential-parsers/VCDM2SdJwtParser.ts',
 	'src/credential-verifiers/VCDM2JoseVerifier.ts',
 	'src/credential-verifiers/VCDM2LdpVerifier.ts',
+	'src/credential-verifiers/VCDM2SdJwtVerifier.ts',
 	'src/schemas/Vcdm2CredentialSchema.ts',
 	'src/utils/vcdm2.ts',
 	'src/utils/vcdm2Presentation.ts',

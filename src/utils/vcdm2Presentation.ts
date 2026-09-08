@@ -2,6 +2,7 @@ import { VCDM2_CONTEXT_V2 } from "../schemas/Vcdm2CredentialSchema";
 import {
 	coerceCredentialObject,
 	decodeCompactJws,
+	decodeVcdm2SdJwt,
 	isVcdm2Credential,
 	looksLikeEnvelopedVcdm2,
 } from "./vcdm2";
@@ -17,8 +18,24 @@ import { didKeyToJwk } from "./dataIntegrity/multibase";
  * component with access to private key material.
  */
 
-/** Media type used in the `data:` URI of an enveloped verifiable credential. */
-export const ENVELOPED_VC_MEDIA_TYPE = "application/vc+jwt";
+/** Media type of a VCDM 2.0 credential secured with an enveloping JOSE proof. */
+export const ENVELOPED_VC_JWT_MEDIA_TYPE = "application/vc+jwt";
+
+/** Media type of a VCDM 2.0 credential carried inside an SD-JWT. */
+export const ENVELOPED_VC_SDJWT_MEDIA_TYPE = "application/vc+sd-jwt";
+
+/**
+ * The media type to name in an EnvelopedVerifiableCredential's `data:` URI.
+ *
+ * This has to follow the credential actually being presented: naming
+ * `application/vc+jwt` for an SD-JWT would describe the envelope's contents
+ * incorrectly, and a verifier reading the media type would parse it wrongly.
+ */
+export function envelopedMediaTypeFor(rawCredential: unknown): string {
+	return decodeVcdm2SdJwt(rawCredential) !== null
+		? ENVELOPED_VC_SDJWT_MEDIA_TYPE
+		: ENVELOPED_VC_JWT_MEDIA_TYPE;
+}
 
 /**
  * A public JWK, described structurally rather than as jose's `JWK`.
@@ -56,10 +73,10 @@ export type Vcdm2Presentation = {
  * already a JSON-LD object and is embedded directly.
  */
 export function wrapCredentialForPresentation(rawCredential: unknown): unknown {
-	if (looksLikeEnvelopedVcdm2(rawCredential)) {
+	if (looksLikeEnvelopedVcdm2(rawCredential) || decodeVcdm2SdJwt(rawCredential) !== null) {
 		return {
 			"@context": VCDM2_CONTEXT_V2,
-			id: `data:${ENVELOPED_VC_MEDIA_TYPE},${rawCredential as string}`,
+			id: `data:${envelopedMediaTypeFor(rawCredential)},${rawCredential as string}`,
 			type: "EnvelopedVerifiableCredential",
 		};
 	}
@@ -112,9 +129,14 @@ export function buildVcdm2Presentation(
  * the caller must treat as "cannot present" rather than picking a key.
  */
 export function holderJwkFromCredential(rawCredential: unknown): HolderPublicJwk | null {
-	if (looksLikeEnvelopedVcdm2(rawCredential)) {
-		const decoded = decodeCompactJws(rawCredential);
-		const jwk = decoded?.payload?.cnf?.jwk;
+	// Both JWT-carried forms bind the holder through `cnf.jwk`: for an SD-JWT
+	// it sits in the issuer-signed JWT, exactly as SD-JWT VC does.
+	const jwtPayload = looksLikeEnvelopedVcdm2(rawCredential)
+		? decodeCompactJws(rawCredential)?.payload
+		: decodeVcdm2SdJwt(rawCredential)?.payload;
+
+	if (jwtPayload) {
+		const jwk = jwtPayload?.cnf?.jwk;
 		return jwk && typeof jwk === "object" ? jwk as HolderPublicJwk : null;
 	}
 
@@ -142,7 +164,7 @@ export function holderJwkFromCredential(rawCredential: unknown): HolderPublicJwk
 export function holderIdFromCredential(rawCredential: unknown): string | undefined {
 	const candidate = looksLikeEnvelopedVcdm2(rawCredential)
 		? decodeCompactJws(rawCredential)?.payload
-		: coerceCredentialObject(rawCredential);
+		: decodeVcdm2SdJwt(rawCredential)?.payload ?? coerceCredentialObject(rawCredential);
 
 	if (candidate === null || typeof candidate !== "object") return undefined;
 

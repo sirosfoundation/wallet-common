@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-	ENVELOPED_VC_MEDIA_TYPE,
+	ENVELOPED_VC_JWT_MEDIA_TYPE,
 	buildVcdm2Presentation,
 	holderIdFromCredential,
 	holderJwkFromCredential,
@@ -41,7 +41,7 @@ describe("wrapCredentialForPresentation", () => {
 
 		expect(wrapped.type).toBe("EnvelopedVerifiableCredential");
 		expect(wrapped["@context"]).toBe("https://www.w3.org/ns/credentials/v2");
-		expect(wrapped.id).toBe(`data:${ENVELOPED_VC_MEDIA_TYPE},${raw}`);
+		expect(wrapped.id).toBe(`data:${ENVELOPED_VC_JWT_MEDIA_TYPE},${raw}`);
 	});
 
 	it("embeds a Data Integrity credential object directly", () => {

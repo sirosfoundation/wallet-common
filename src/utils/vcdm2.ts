@@ -94,6 +94,47 @@ export function decodeEnvelopedVcdm2(raw: unknown): { header: any; payload: any 
 	return isVcdm2Credential(decoded.payload) ? decoded : null;
 }
 
+/**
+ * Split an SD-JWT into its issuer-signed JWT and the remainder (disclosures
+ * and any key-binding JWT). Returns null when `raw` is not SD-JWT shaped.
+ *
+ * DIIP v5 credentials disclose every claim, so the disclosure list is
+ * typically empty and `raw` is just a JWT with a trailing `~`.
+ */
+export function splitSdJwt(raw: unknown): { issuerJwt: string; rest: string[] } | null {
+	if (typeof raw !== "string") return null;
+
+	const tilde = raw.indexOf("~");
+	if (tilde === -1) return null;
+
+	const issuerJwt = raw.slice(0, tilde);
+	if (issuerJwt.split(".").length !== 3) return null;
+
+	return { issuerJwt, rest: raw.slice(tilde + 1).split("~").filter((part) => part !== "") };
+}
+
+/**
+ * Decode an SD-JWT whose issuer-signed payload is a VCDM 2.0 credential —
+ * "VCDM 2.0 as SD-JWT", as DIIP v5 specifies.
+ *
+ * This shares the `vc+sd-jwt` type header with legacy SD-JWT VC, so the
+ * payload is what tells them apart: an SD-JWT VC carries `vct`, while a
+ * VCDM 2.0 credential carries `@context`/`type`/`issuer` and no `vct`.
+ * Anything with a `vct` is left to SDJWTVCParser.
+ */
+export function decodeVcdm2SdJwt(raw: unknown): { header: any; payload: any; issuerJwt: string } | null {
+	const split = splitSdJwt(raw);
+	if (!split) return null;
+
+	const decoded = decodeCompactJws(split.issuerJwt);
+	if (!decoded) return null;
+
+	if (decoded.payload?.vct !== undefined) return null;
+	if (!isVcdm2Credential(decoded.payload)) return null;
+
+	return { ...decoded, issuerJwt: split.issuerJwt };
+}
+
 /** True when a compact JWS carries a VCDM 2.0 credential as its payload. */
 export function looksLikeEnvelopedVcdm2(raw: unknown): raw is string {
 	return decodeEnvelopedVcdm2(raw) !== null;
