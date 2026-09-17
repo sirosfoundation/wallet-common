@@ -14,6 +14,9 @@ export const OpenidAuthorizationServerMetadataSchema = z.object({
 	dpop_signing_alg_values_supported: z.array(z.string()).optional(),
 	scopes_supported: z.array(z.string()).optional(),
 	grant_types_supported: z.array(z.string()).optional(),
+	// RFC 9396 §10.1. `openid_credential` here means the Authorization Server accepts an
+	// OID4VCI `authorization_details` entry, which DIIP v5 requires Issuer Agents to support.
+	authorization_details_types_supported: z.array(z.string()).optional(),
 	jwks_uri: z.string().optional(),
 	"pre-authorized_grant_anonymous_access_supported": z.boolean().optional()
 });

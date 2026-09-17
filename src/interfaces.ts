@@ -36,7 +36,7 @@ export interface VerifyingEngineI {
 
 export interface PublicKeyResolverEngineI {
 	register(resolver: PublicKeyResolver): void;
-	resolve(args: { identifier: string }): Promise<CustomResult<{
+	resolve(args: { identifier: string, kid?: string }): Promise<CustomResult<{
 		jwk: JWK
 	}, PublicKeyResolutionError>>;
 }
@@ -57,7 +57,11 @@ export interface CredentialVerifier {
 
 
 export interface PublicKeyResolver {
-	resolve(args: { identifier: string }): Promise<CustomResult<{
+	/**
+	 * @param identifier the entity identifier to resolve a key for (e.g. an SD-JWT VC `iss`).
+	 * @param kid optional key identifier from the JWT header, narrowing which key to return.
+	 */
+	resolve(args: { identifier: string, kid?: string }): Promise<CustomResult<{
 		jwk: JWK
 	}, PublicKeyResolutionError>>;
 }

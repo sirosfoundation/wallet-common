@@ -289,9 +289,13 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 		// Case 3: kid reference (possibly to a DID document)
 		const kid = parsedHeader.kid as string | undefined;
 		if (kid) {
+			// The client_id may carry the OID4VP `decentralized_identifier:` prefix, so take the
+			// bare DID from the parsed scheme rather than testing the raw value for a "did:" start.
+			const clientDid = clientId && parseClientIdScheme(clientId).scheme === "did"
+				? parseClientIdScheme(clientId).identifier
+				: null;
 			// Check if client_id is a DID or if kid starts with did:
-			const didToResolve = kid.startsWith("did:") ? kid.split("#")[0] :
-				(clientId?.startsWith("did:") ? clientId : null);
+			const didToResolve = kid.startsWith("did:") ? kid.split("#")[0] : clientDid;
 
 			if (didToResolve) {
 				// Need DID resolution
