@@ -22,6 +22,7 @@ import {
 	DIDVerificationMethod,
 } from "./types";
 import { VerifiableCredentialFormat } from "../../types";
+import { toTypeArray } from "../../utils/vcdm2";
 export const HandleAuthorizationRequestErrors = {
 	NON_SUPPORTED_CLIENT_ID_SCHEME: "non_supported_client_id_scheme",
 	INSUFFICIENT_CREDENTIALS: "insufficient_credentials",
@@ -219,6 +220,20 @@ const retrieveKeys = async (S: OpenID4VPRelyingPartyState, httpClient: { get: (u
 	}
 	throw new Error("Could not find Relying Party public key for encryption");
 };
+
+/**
+ * The credential format identifier to present to DCQL.
+ *
+ * `VCDM2_SDJWT` is an internal discriminator: it exists only to tell a VCDM 2.0
+ * credential apart from a legacy SD-JWT VC, which share the `vc+sd-jwt`
+ * identifier on the wire. A verifier asks for the wire value, so that is what
+ * the shaped credential has to carry.
+ */
+function dcqlCredentialFormat(format: VerifiableCredentialFormat): string {
+	return format === VerifiableCredentialFormat.VCDM2_SDJWT
+		? VerifiableCredentialFormat.VC_SDJWT
+		: format;
+}
 
 export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, ParsedTransactionDataT> {
 	private deps: OpenID4VPServerDeps<CredentialT, ParsedTransactionDataT>;
@@ -491,6 +506,29 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 						},
 						batchId: vc.batchId,
 						cryptographic_holder_binding: true,
+					};
+				} else if (
+					vc.format === VerifiableCredentialFormat.VCDM2_SDJWT ||
+					vc.format === VerifiableCredentialFormat.LDP_VC
+				) {
+					// W3C VCDM 2.0 shaping.
+					//
+					// DCQL models these as W3C credentials, identified by their
+					// `type` array: there is no `vct` to match on, and supplying
+					// an undefined one fails the model outright. `vcdm2+sd-jwt`
+					// is also an internal discriminator rather than a wire
+					// value, so the format has to be the identifier a verifier
+					// actually asks for.
+					const parsed = await this.deps.parseCredential(vc);
+					if (!parsed) {
+						continue;
+					}
+					shaped = {
+						credential_format: dcqlCredentialFormat(vc.format),
+						type: toTypeArray((parsed.signedClaims as Record<string, unknown>).type),
+						claims: parsed.signedClaims,
+						cryptographic_holder_binding: true,
+						batchId: vc.batchId,
 					};
 				} else {
 					// SD-JWT shaping
