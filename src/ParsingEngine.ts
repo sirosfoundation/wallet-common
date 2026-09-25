@@ -10,6 +10,11 @@ export function ParsingEngine(): ParsingEngineI {
 		},
 
 		async parse({ rawCredential, credentialIssuer }) {
+			// A parser that throws has told us nothing about whether a *later*
+			// parser could handle the credential, so remember the failure and
+			// keep going rather than failing the whole chain on it.
+			let thrown = false;
+
 			for (const parser of parsers) {
 				try {
 					const result = await parser.parse({ rawCredential, credentialIssuer });
@@ -23,12 +28,16 @@ export function ParsingEngine(): ParsingEngineI {
 					return result;
 
 				} catch {
-					return { success: false, error: CredentialParsingError.UnknownError };
+					thrown = true;
+					continue;
 				}
 			}
 
 			// No parser handled it
-			return { success: false, error: CredentialParsingError.UnsupportedFormat };
+			return {
+				success: false,
+				error: thrown ? CredentialParsingError.UnknownError : CredentialParsingError.UnsupportedFormat,
+			};
 		}
 	};
 }

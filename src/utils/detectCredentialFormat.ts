@@ -1,14 +1,36 @@
 import { base64url } from 'jose';
 import { VerifiableCredentialFormat } from '../types';
+import { coerceCredentialObject, decodeVcdm2SdJwt, isVcdm2Credential, looksLikeEnvelopedVcdm2 } from './vcdm2';
 
 /**
  * Detects the format of a verifiable credential based on its raw string representation.
+ *
+ * Order matters. `isJwtVcJson` is a purely structural check that matches any
+ * three-segment token, so the more specific VCDM 2.0 checks have to run first
+ * or an enveloped VCDM 2.0 credential would be misreported as VCDM 1.1
+ * `jwt_vc_json` — and then rejected downstream for lacking a `vc` claim.
  */
 export function detectCredentialFormat(raw: string): VerifiableCredentialFormat | null {
 	if (isMdoc(raw)) return VerifiableCredentialFormat.MSO_MDOC;
-	if (isJwtVcJson(raw)) return VerifiableCredentialFormat.JWT_VC_JSON;
+	if (isLdpVc(raw)) return VerifiableCredentialFormat.LDP_VC;
+	// Before the generic SD-JWT check: a VCDM 2.0 credential carried in an
+	// SD-JWT shares the `vc+sd-jwt` type with legacy SD-JWT VC, and is told
+	// apart by its payload rather than its header.
+	if (decodeVcdm2SdJwt(raw) !== null) return VerifiableCredentialFormat.VCDM2_SDJWT;
 	if (isSdJwt(raw)) return detectSdJwtVariant(raw);
+	if (looksLikeEnvelopedVcdm2(raw)) return VerifiableCredentialFormat.VCDM2_JOSE;
+	if (isJwtVcJson(raw)) return VerifiableCredentialFormat.JWT_VC_JSON;
 	return null;
+}
+
+/**
+ * Detect a W3C VCDM 2.0 credential secured with an embedded Data Integrity
+ * proof. Unlike every other supported format this is a JSON-LD object rather
+ * than a compact token, so it arrives as JSON text.
+ */
+export function isLdpVc(raw: string): boolean {
+	const candidate = coerceCredentialObject(raw);
+	return candidate !== null && isVcdm2Credential(candidate);
 }
 
 /**

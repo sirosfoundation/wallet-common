@@ -86,10 +86,18 @@ const msoDocSchema = commonSchema.extend({
 });
 
 
+// jwt_vc_json (VCDM 1.1) and the two VCDM 2.0 securing mechanisms share one
+// arm: none of them carries an SD-JWT `vct` or an mdoc `doctype`, and
+// `commonSchema` passes their remaining members through. Keeping them in a
+// single arm also keeps the surrounding issuer-metadata schema's inferred
+// type within what TypeScript will serialize (TS7056).
 const jwtVcJsonSchema = commonSchema.extend({
-	format: z.literal(VerifiableCredentialFormat.JWT_VC_JSON),
+	format: z.union([
+		z.literal(VerifiableCredentialFormat.JWT_VC_JSON),
+		z.literal(VerifiableCredentialFormat.VCDM2_JOSE),
+		z.literal(VerifiableCredentialFormat.LDP_VC),
+	]),
 });
-
 
 export const CredentialConfigurationSupportedSchema = sdJwtSchema.or(msoDocSchema).or(jwtVcJsonSchema);
 
