@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DcqlQuery } from "dcql";
 import { MBOB_ACADEMIC_ENROLLMENT } from "../../testFixtures/realCredentials";
-import { decodeVcdm2SdJwt, toTypeArray } from "../../utils/vcdm2";
+import { decodeVcdm2SdJwt, isVcdm2Credential, toTypeArray } from "../../utils/vcdm2";
 
 /**
  * A real mbob credential has no `vct` and is identified by its `type` array,
@@ -23,36 +23,48 @@ describe("DCQL shaping for a VCDM 2.0 credential carried in an SD-JWT", () => {
 		}],
 	};
 
+	const runQuery = (shaped: unknown) => {
+		const parsed = DcqlQuery.parse(query as never);
+		return DcqlQuery.query(parsed, [shaped] as never).credential_matches["enrollment"];
+	};
+
 	it("the credential really has no vct to match on", () => {
 		expect(claims.vct).toBeUndefined();
 		expect(toTypeArray(claims.type)).toContain("AcademicEnrollmentCredential");
 	});
 
 	it("shaped the old way, it matches nothing", () => {
-		const shapedTheOldWay = {
+		expect(runQuery({
 			credential_format: "vcdm2+sd-jwt", // internal discriminator
 			vct: claims.vct,                   // undefined
 			claims,
 			cryptographic_holder_binding: true,
-		};
-
-		const parsed = DcqlQuery.parse(query as never);
-		const result = DcqlQuery.query(parsed, [shapedTheOldWay] as never);
-		expect(result.credential_matches["enrollment"]?.success).not.toBe(true);
+		})?.success).not.toBe(true);
 	});
 
 	it("shaped as a W3C credential, it matches", () => {
-		const shaped = {
-			credential_format: "vc+sd-jwt",          // the wire value
-			type: toTypeArray(claims.type),          // identified by type, not vct
+		expect(runQuery({
+			credential_format: "vc+sd-jwt",
+			type: toTypeArray(claims.type),
 			claims,
 			cryptographic_holder_binding: true,
-		};
+		})?.success).toBe(true);
+	});
 
-		const parsed = DcqlQuery.parse(query as never);
-		const result = DcqlQuery.query(parsed, [shaped] as never);
+	/**
+	 * The wallet records the format the *issuer advertised*, and this
+	 * credential is advertised as `vc+sd-jwt` -- the identifier legacy SD-JWT
+	 * VC also uses. So the stored label cannot decide the shaping; only the
+	 * payload can. This is the case that actually failed against the proeftuin.
+	 */
+	it("is recognised from its payload, not its stored format label", () => {
+		expect(isVcdm2Credential(claims)).toBe(true);
+		expect(claims.vct).toBeUndefined();
+	});
 
-		const match = result.credential_matches["enrollment"];
-		expect(match?.success).toBe(true);
+	it("a genuine SD-JWT VC is not mistaken for VCDM 2.0", () => {
+		// The guard has to hold in both directions: an SD-JWT VC carries a
+		// vct and must keep its vct-based shaping.
+		expect(isVcdm2Credential({ vct: "urn:eduid", iss: "https://example" })).toBe(false);
 	});
 });
