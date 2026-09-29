@@ -167,4 +167,48 @@ describe("The CredentialRendering", () => {
 		assert(isValidSVG(dataUri) == true, "Not valid generated datauri svg");
 		fs.writeFileSync(path.join(__dirname, "../output/filtered.svg"), dataUriToSvg(dataUri), 'utf-8');
 	});
+
+	describe("with mdoc byte-string claims", () => {
+		const template = '<svg xmlns="http://www.w3.org/2000/svg"><image href="{{portrait}}"/><text>{{name}}</text><text>{{seed}}</text></svg>';
+		const claims = [
+			{ path: ["org.iso.23220.1", "portrait"], svg_id: "portrait" },
+			{ path: ["org.iso.23220.1", "family_name_unicode"], svg_id: "name" },
+			{ path: ["org.iso.23220.1", "seed"], svg_id: "seed" },
+		];
+		const jpeg = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10];
+
+		async function render(bytes: Uint8Array, filter?: string[][]) {
+			const dataUri = await cr.renderSvgTemplate({
+				json: { "org.iso.23220.1": { portrait: bytes, family_name_unicode: "De Bruijn", seed: new Uint8Array([1, 2, 3]) } },
+				credentialImageSvgTemplate: template,
+				vcMetadataClaims: claims,
+				filter,
+			});
+			assert(dataUri !== null, "Svg not rendered");
+			assert(isValidSVG(dataUri), "Not valid generated datauri svg");
+			return dataUriToSvg(dataUri);
+		}
+
+		it("renders an image as a data URI", async () => {
+			const svg = await render(new Uint8Array(jpeg));
+			assert.include(svg, `href="data:image/jpeg;base64,${btoa(String.fromCharCode(...jpeg))}"`);
+			assert.include(svg, "<text>De Bruijn</text>");
+		});
+
+		it("encodes only the claim's bytes when it is a view into a larger buffer", async () => {
+			const buffer = new Uint8Array([0x01, 0x02, ...jpeg, 0x03]);
+			const svg = await render(buffer.subarray(2, 2 + jpeg.length));
+			assert.include(svg, `href="data:image/jpeg;base64,${btoa(String.fromCharCode(...jpeg))}"`);
+		});
+
+		it("leaves a byte string that is not an image as it was", async () => {
+			const svg = await render(new Uint8Array(jpeg));
+			assert.include(svg, "<text>1,2,3</text>");
+		});
+
+		it("does not reveal a portrait the filter excludes", async () => {
+			const svg = await render(new Uint8Array(jpeg), [["org.iso.23220.1", "family_name_unicode"]]);
+			assert.include(svg, 'href="-"');
+		});
+	});
 })
