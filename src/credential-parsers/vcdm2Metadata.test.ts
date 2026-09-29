@@ -229,7 +229,12 @@ describe("VCDM2JoseVerifier x5c handling", () => {
 		if (!result.success) expect(result.error).toBe(CredentialVerificationError.NotTrustedIssuer);
 	});
 
-	it("skips local chain validation when no trust anchors are configured", async () => {
+	it("refuses an x5c chain when local trust has no anchors configured", async () => {
+		// Previously the whole trust block was skipped when the anchor list was
+		// empty, so any issuer presenting a chain was accepted and the only
+		// remaining hurdle was whether the certificate parsed. Evaluating trust
+		// locally with nothing to trust against cannot establish anything, so
+		// it now fails instead. Raised in review by @smncd.
 		const jwt = await signedWithX5c(["not-a-certificate"]);
 		const verifier = VCDM2JoseVerifier({
 			context: makeContext({ delegateTrustToBackend: false, trustedCertificates: [] }),
@@ -237,10 +242,9 @@ describe("VCDM2JoseVerifier x5c handling", () => {
 			httpClient: metadataHttpClient(),
 		});
 
-		// Reaches the import step rather than failing on trust.
 		const result = await verifier.verify({ rawCredential: jwt, opts: {} });
 		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.CannotImportIssuerPublicKey);
+		if (!result.success) expect(result.error).toBe(CredentialVerificationError.NotTrustedIssuer);
 	});
 });
 

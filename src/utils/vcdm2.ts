@@ -122,12 +122,26 @@ export function splitSdJwt(raw: unknown): { issuerJwt: string; rest: string[] } 
  * VCDM 2.0 credential carries `@context`/`type`/`issuer` and no `vct`.
  * Anything with a `vct` is left to SDJWTVCParser.
  */
+/**
+ * The media type of a VCDM 2.0 credential secured as an SD-JWT. Distinct from
+ * `dc+sd-jwt`, which is an IETF SD-JWT VC.
+ */
+const VCDM2_SDJWT_TYPE = "vc+sd-jwt";
+
 export function decodeVcdm2SdJwt(raw: unknown): { header: any; payload: any; issuerJwt: string } | null {
 	const split = splitSdJwt(raw);
 	if (!split) return null;
 
 	const decoded = decodeCompactJws(split.issuerJwt);
 	if (!decoded) return null;
+
+	// A `typ` that names some other media type is decisive: this parser is
+	// registered ahead of the legacy SD-JWT VC one, so without the check a
+	// token explicitly declaring `dc+sd-jwt` could be claimed here on payload
+	// shape alone. An absent `typ` still falls through to the heuristic,
+	// since not every issuer sets one.
+	const typ = decoded.header?.typ;
+	if (typeof typ === "string" && typ.toLowerCase() !== VCDM2_SDJWT_TYPE) return null;
 
 	if (decoded.payload?.vct !== undefined) return null;
 	if (!isVcdm2Credential(decoded.payload)) return null;
@@ -230,9 +244,12 @@ export function extractVcdm2ValidityInfo(
 	const validUntil = fromIso(credential.validUntil);
 	if (validUntil) result.validUntil = validUntil;
 
-	if (jwtClaims?.nbf) result.validFrom = new Date(jwtClaims.nbf * 1000);
-	if (jwtClaims?.exp) result.validUntil = new Date(jwtClaims.exp * 1000);
-	if (jwtClaims?.iat) result.signed = new Date(jwtClaims.iat * 1000);
+	// Tested for presence rather than truthiness: 0 is a valid NumericDate (the
+	// epoch), and treating it as absent would fall back to the credential's own
+	// JSON-LD dates even though the signed claim is the authority.
+	if (jwtClaims?.nbf !== undefined) result.validFrom = new Date(jwtClaims.nbf * 1000);
+	if (jwtClaims?.exp !== undefined) result.validUntil = new Date(jwtClaims.exp * 1000);
+	if (jwtClaims?.iat !== undefined) result.signed = new Date(jwtClaims.iat * 1000);
 
 	return result;
 }

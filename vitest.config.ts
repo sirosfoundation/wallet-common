@@ -32,6 +32,10 @@ export default defineConfig({
 		exclude: ['node_modules/**'],
 		silent: 'passed-only',
 		coverage: {
+			// Enabled here rather than relying on --coverage: the package test
+			// script is `vitest run`, so without this the thresholds below
+			// never run and the per-file gate silently does nothing.
+			enabled: true,
 			provider: 'v8',
 			reporter: ['text', 'lcov'],
 			reportsDirectory: 'coverage',

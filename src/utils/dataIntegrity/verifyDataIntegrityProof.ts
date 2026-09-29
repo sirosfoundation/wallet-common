@@ -58,6 +58,17 @@ const LEGACY_PROOF_TYPES: Record<string, string> = {
 	Ed25519Signature2020: "eddsa-rdfc-2022",
 };
 
+/**
+ * Whether a resolved cryptosuite name is one this package can actually verify.
+ *
+ * `resolveCryptosuite` reports what the proof *claims*, which includes suites
+ * such as `ecdsa-sd-2023` that are deliberately unsupported, so callers that
+ * want to fail early have to ask separately.
+ */
+export function isSupportedCryptosuite(name: string | undefined): boolean {
+	return typeof name === "string" && Object.prototype.hasOwnProperty.call(SUITES, name);
+}
+
 export function resolveCryptosuite(proof: DataIntegrityProof): string | undefined {
 	if (typeof proof.cryptosuite === "string" && proof.cryptosuite.length > 0) {
 		return proof.cryptosuite;

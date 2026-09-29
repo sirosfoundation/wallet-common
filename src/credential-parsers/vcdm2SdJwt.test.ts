@@ -358,7 +358,7 @@ describe("VCDM2SdJwtVerifier", () => {
 		expect(resolver.resolve).toHaveBeenCalledWith({ identifier: ISSUER });
 	});
 
-	it("reports when there is nothing to resolve the key from", async () => {
+	it("rejects a malformed issuer before attempting key resolution", async () => {
 		const raw = unsignedSdJwt({
 			"@context": ["https://www.w3.org/ns/credentials/v2"],
 			type: ["VerifiableCredential"],
@@ -371,7 +371,9 @@ describe("VCDM2SdJwtVerifier", () => {
 
 		const result = await verifier.verify({ rawCredential: raw, opts: {} });
 		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.CannotResolveIssuerPublicKey);
+		// An issuer object without an `id` is not a valid VCDM 2.0 credential,
+		// so schema validation rejects it before key resolution is attempted.
+		if (!result.success) expect(result.error).toBe(CredentialVerificationError.InvalidFormat);
 	});
 
 	it("reports when the key cannot be resolved", async () => {

@@ -10,6 +10,7 @@ import {
 } from "../utils/vcdm2";
 import { didKeyToJwk } from "../utils/dataIntegrity/multibase";
 import {
+	isSupportedCryptosuite,
 	resolveCryptosuite,
 	verifyDataIntegrityProof,
 } from "../utils/dataIntegrity/verifyDataIntegrityProof";
@@ -72,8 +73,13 @@ export function VCDM2LdpVerifier(args: { context: Context, pkResolverEngine: Pub
 			let lastError: CredentialVerificationError = CredentialVerificationError.InvalidSignature;
 
 			for (const proof of proofs) {
+				// Checked against the supported set, not merely for presence:
+				// resolveCryptosuite reports whatever the proof claims, so an
+				// unsupported suite such as ecdsa-sd-2023 would otherwise reach
+				// key resolution and surface as CannotResolveIssuerPublicKey
+				// when the verification method happens to be unavailable.
 				const cryptosuite = resolveCryptosuite(proof);
-				if (!cryptosuite) {
+				if (!isSupportedCryptosuite(cryptosuite)) {
 					lastError = CredentialVerificationError.UnsupportedCryptosuite;
 					continue;
 				}
@@ -99,10 +105,10 @@ export function VCDM2LdpVerifier(args: { context: Context, pkResolverEngine: Pub
 					return { success: true, value: { holderPublicKey: {} as JWK } };
 				}
 
+				// No "unsupported-cryptosuite" arm: the suite is checked against
+				// the supported set before this point, so verifyDataIntegrityProof
+				// can no longer report one here.
 				switch (result.failure.kind) {
-					case "unsupported-cryptosuite":
-						lastError = CredentialVerificationError.UnsupportedCryptosuite;
-						break;
 					case "canonicalization-failed":
 						lastError = CredentialVerificationError.CanonicalizationFailed;
 						break;

@@ -22,7 +22,10 @@ const BASE58_LOOKUP: Record<string, number> = (() => {
 export function base58Decode(input: string): Uint8Array {
 	if (input.length === 0) return new Uint8Array(0);
 
-	const bytes: number[] = [0];
+	// Starts empty rather than with a zero: the leading-'1' loop below already
+	// contributes one zero byte per leading '1', so a sentinel would make an
+	// all-zero value such as "1" decode to two bytes instead of one.
+	const bytes: number[] = [];
 	for (const char of input) {
 		const value = BASE58_LOOKUP[char];
 		if (value === undefined) {

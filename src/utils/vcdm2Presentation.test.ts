@@ -11,7 +11,7 @@ function b64url(value: object): string {
 	const bytes = new TextEncoder().encode(JSON.stringify(value));
 	let binary = "";
 	for (const b of bytes) binary += String.fromCharCode(b);
-	return btoa(binary).replace(/\+/g, "-").replace(/_/g, "_").replace(/\//g, "_").replace(/=+$/, "");
+	return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 const holderJwk = { kty: "EC", crv: "P-256", x: "abc", y: "def" };
