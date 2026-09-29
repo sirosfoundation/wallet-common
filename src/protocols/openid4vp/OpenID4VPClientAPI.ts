@@ -16,7 +16,6 @@ import { fromBase64Url, toBase64Url } from "../../utils/util";
 import { TransactionData } from "./transactionData";
 import { CredentialEngineOptions, CredentialIssuerMetadata, IacasResponse, OpenID4VPOptions, PresentationClaims, PresentationInfo, OpenID4VPResponseMode, RPState } from "./types";
 import { DcqlPresentationResult } from 'dcql';
-import { randomUUID } from "crypto";
 import { exportJWK, generateKeyPair, importPKCS8, SignJWT, compactDecrypt, CompactDecryptResult, importJWK } from "jose";
 import { serializeDcqlQuery } from "../../utils/serializeDcqlQuery";
 
@@ -115,7 +114,7 @@ export class OpenID4VPClientAPI {
 
 		console.log("Presentation Request: Session id used for authz req ", sessionId);
 
-		const nonce = randomUUID();
+		const nonce = crypto.randomUUID();
 		const state = sessionId;
 
 		const client_id = new URL(responseUri).hostname
@@ -638,7 +637,7 @@ export class OpenID4VPClientAPI {
 				"Encrypted Response: presentation_submission and vp_token are missing"
 			);
 		}
-		rpState.response_code = toBase64Url(encoder.encode(randomUUID()));
+		rpState.response_code = toBase64Url(encoder.encode(crypto.randomUUID()));
 		await this.saveResponseCodeMapping(rpState.response_code, rpState.session_id);
 		rpState.encrypted_response = response;
 		rpState.presentation_submission = payload.presentation_submission;
@@ -677,7 +676,7 @@ export class OpenID4VPClientAPI {
 			return err(OpenID4VPClientErrors.PresentationAlreadyCompleted, "Presentation flow already completed");
 		}
 
-		rpState.response_code = toBase64Url(encoder.encode(randomUUID()));
+		rpState.response_code = toBase64Url(encoder.encode(crypto.randomUUID()));
 		await this.saveResponseCodeMapping(rpState.response_code, rpState.session_id);
 		rpState.presentation_submission = presentation_submission;
 		rpState.vp_token = toBase64Url(encoder.encode(JSON.stringify(vp_token)));

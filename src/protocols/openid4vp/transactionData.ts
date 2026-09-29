@@ -1,5 +1,4 @@
 import { base64url } from 'jose';
-import crypto from 'node:crypto';
 import { z } from "zod";
 import { fromBase64Url, toBase64Url } from "../../utils/util";
 import { TransactionDataResponseGenerator, TransactionDataResponseGeneratorParams } from './types';
@@ -112,7 +111,7 @@ export function parseTransactionData(
 
 export async function convertTransactionDataB65uToHash(x: string) {
 	const data = fromBase64Url(x);
-	const webcrypto = globalThis.crypto?.subtle ?? crypto.subtle;
+	const webcrypto = crypto.subtle;
 	const digest = await webcrypto.digest('SHA-256', new Uint8Array(data));
 	return toBase64Url(digest);
 }
@@ -167,7 +166,7 @@ export const QESAuthorizationTransactionData = () => {
 			const expectedObjectDecoded = fromBase64Url(expectedObjectB64U);
 			for (const hashB64U of params.transaction_data_hashes) {
 				if (!params.transaction_data_hashes_alg || params.transaction_data_hashes_alg.includes('sha-256')) { // sha256 case
-					const calculatedHashOfExpectedObject = toBase64Url(await webcrypto.digest('SHA-256', expectedObjectDecoded));
+					const calculatedHashOfExpectedObject = toBase64Url(await webcrypto.digest('SHA-256', new Uint8Array(expectedObjectDecoded)));
 					console.log("calculatedHash = ", calculatedHashOfExpectedObject);
 					console.log("hashB64U = ", hashB64U);
 					if (calculatedHashOfExpectedObject === hashB64U) {
@@ -202,7 +201,7 @@ export const QCRequestTransactionData = () => {
 			const expectedObjectDecoded = fromBase64Url(expectedObjectB64U);
 			for (const hashB64U of params.transaction_data_hashes) {
 				if (!params.transaction_data_hashes_alg || params.transaction_data_hashes_alg.includes('sha-256')) { // sha256 case
-					const calculatedHashOfExpectedObject = toBase64Url(await webcrypto.digest('SHA-256', expectedObjectDecoded));
+					const calculatedHashOfExpectedObject = toBase64Url(await webcrypto.digest('SHA-256', new Uint8Array(expectedObjectDecoded)));
 					console.log("calculatedHash = ", calculatedHashOfExpectedObject);
 					console.log("hashB64U = ", hashB64U);
 					if (calculatedHashOfExpectedObject === hashB64U) {
