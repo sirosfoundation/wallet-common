@@ -106,16 +106,10 @@ async function canonicalize(
 		documentLoader: createDocumentLoader({ httpClient }),
 	};
 
-	// "RDFC-1.0" and "URDNA2015" name the same algorithm; which one is
-	// accepted depends on the jsonld major version, so try the current name
-	// and fall back to the historical one.
-	try {
-		return await jsonld.canonize(document, { ...options, algorithm: "RDFC-1.0" });
-	} catch (err) {
-		const message = errorMessage(err);
-		if (!/canonicalization algorithm/i.test(message)) throw err;
-		return jsonld.canonize(document, { ...options, algorithm: "URDNA2015" });
-	}
+	// "RDFC-1.0" is the current name for the algorithm jsonld 9 accepts;
+	// "URDNA2015" is the historical spelling jsonld 8 required. The
+	// dependency is pinned to ^9, so only the current name is used.
+	return jsonld.canonize(document, { ...options, algorithm: "RDFC-1.0" });
 }
 
 async function sha(subtle: SubtleCrypto, algorithm: "SHA-256" | "SHA-384", data: Uint8Array): Promise<Uint8Array> {
