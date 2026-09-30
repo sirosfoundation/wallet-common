@@ -7,6 +7,11 @@ export function formatDate(value: any, format = 'datetime') {
 	const longFormDateRegex = /^[A-Z][a-z]{2} [A-Z][a-z]{2} \d{2} \d{4} \d{2}:\d{2}:\d{2} GMT[+-]\d{4}/;
 
 	let date;
+	// A calendar date with no time of day (YYYY-MM-DD, or an mdoc full-date,
+	// which decoders turn into a Date at midnight UTC) is formatted in UTC.
+	// In the viewer's timezone that midnight falls on the previous day for
+	// anyone west of UTC, showing a birth date one day early.
+	let dateOnly = false;
 
 	if (typeof value === 'number') {
 		if (value.toString().length === 10) {
@@ -28,6 +33,7 @@ export function formatDate(value: any, format = 'datetime') {
 		} else if (simpleDateRegex.test(value)) {
 			// Handle YYYY-MM-DD format
 			date = new Date(value);
+			dateOnly = true;
 		} else if (longFormDateRegex.test(value)) {
 			// Handle long-form date string
 			date = new Date(value);
@@ -38,6 +44,8 @@ export function formatDate(value: any, format = 'datetime') {
 	} else if (value instanceof Date) {
 		// Handle Date objects directly
 		date = value;
+		dateOnly = format === 'date' && date.getUTCHours() === 0 && date.getUTCMinutes() === 0
+			&& date.getUTCSeconds() === 0 && date.getUTCMilliseconds() === 0;
 	} else {
 		// For unsupported types, return the original value
 		return value;
@@ -46,6 +54,9 @@ export function formatDate(value: any, format = 'datetime') {
 	const options = format === 'datetime'
 		? { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }
 		: { day: '2-digit', month: '2-digit', year: 'numeric' };
+	if (dateOnly) {
+		(options as Intl.DateTimeFormatOptions).timeZone = 'UTC';
+	}
 
 	return date.toLocaleDateString('en-GB', options as any);
 }

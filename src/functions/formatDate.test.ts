@@ -1,4 +1,4 @@
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { formatDate } from "./formatDate";
 
 describe("The Date/Time parser", () => {
@@ -137,6 +137,26 @@ describe("The Date/Time parser", () => {
 		console.log(formattedDate);
 
 		assert(formattedDate != rawDate);
+	});
+
+	describe("in a timezone west of UTC", () => {
+		const originalTZ = process.env.TZ;
+		beforeEach(() => { process.env.TZ = 'America/Puerto_Rico'; }); // UTC-4
+		afterEach(() => { process.env.TZ = originalTZ; });
+
+		it("keeps a YYYY-MM-DD date on its own day", () => {
+			assert.equal(formatDate('1987-02-18', 'date'), '18/02/1987');
+			assert.equal(formatDate('1987-02-18'), '18/02/1987, 00:00:00');
+		});
+
+		it("keeps an mdoc full-date (a Date at midnight UTC) on its own day", () => {
+			assert.equal(formatDate(new Date('1987-02-18T00:00:00Z'), 'date'), '18/02/1987');
+		});
+
+		it("still shows a point in time in the local timezone", () => {
+			assert.equal(formatDate(new Date('1987-02-18T02:00:00Z'), 'date'), '17/02/1987');
+			assert.equal(formatDate('2026-02-01T02:00:00Z', 'date'), '31/01/2026');
+		});
 	});
 
 });
