@@ -22,6 +22,7 @@ import {
 	DIDVerificationMethod,
 } from "./types";
 import { VerifiableCredentialFormat } from "../../types";
+import { isVcdm2Credential, toTypeArray } from "../../utils/vcdm2";
 export const HandleAuthorizationRequestErrors = {
 	NON_SUPPORTED_CLIENT_ID_SCHEME: "non_supported_client_id_scheme",
 	INSUFFICIENT_CREDENTIALS: "insufficient_credentials",
@@ -219,6 +220,24 @@ const retrieveKeys = async (S: OpenID4VPRelyingPartyState, httpClient: { get: (u
 	}
 	throw new Error("Could not find Relying Party public key for encryption");
 };
+
+/**
+ * The credential format identifier to present to DCQL.
+ *
+ * `VCDM2_SDJWT` is an internal discriminator: it exists only to tell a VCDM 2.0
+ * credential apart from a legacy SD-JWT VC, which share the `vc+sd-jwt`
+ * identifier on the wire. A verifier asks for the wire value, so that is what
+ * the shaped credential has to carry.
+ */
+function dcqlCredentialFormat(format: string): string {
+	// `vcdm2+sd-jwt` never goes on the wire. It only exists to tell a VCDM 2.0
+	// credential apart from a legacy SD-JWT VC, which share `vc+sd-jwt`, and a
+	// verifier asks for the shared identifier. Every other format is already a
+	// wire value and passes through.
+	return format === VerifiableCredentialFormat.VCDM2_SDJWT
+		? VerifiableCredentialFormat.VC_SDJWT
+		: format;
+}
 
 export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, ParsedTransactionDataT> {
 	private deps: OpenID4VPServerDeps<CredentialT, ParsedTransactionDataT>;
@@ -493,16 +512,41 @@ export class OpenID4VPServerAPI<CredentialT extends OpenID4VPServerCredential, P
 						cryptographic_holder_binding: true,
 					};
 				} else {
-					// SD-JWT shaping
 					const parsed = await this.deps.parseCredential(vc);
 					if (!parsed) {
 						continue;
 					}
 					const { signedClaims } = parsed;
-					shaped.vct = signedClaims.vct;
-					shaped.claims = signedClaims;
-					shaped.cryptographic_holder_binding = true;
-					shaped.batchId = vc.batchId;
+
+					if (isVcdm2Credential(signedClaims)) {
+						// W3C VCDM 2.0 shaping.
+						//
+						// Decided from the credential rather than its stored
+						// format, which cannot tell these apart: the wallet
+						// records the format the issuer advertised, and a
+						// VCDM 2.0 credential carried in an SD-JWT advertises
+						// `vc+sd-jwt` -- the same identifier legacy SD-JWT VC
+						// uses. The payload is unambiguous where the label is
+						// not.
+						//
+						// DCQL models these as W3C credentials, identified by
+						// their `type` array. There is no `vct` to match on,
+						// and supplying an undefined one fails the model
+						// outright.
+						shaped = {
+							credential_format: dcqlCredentialFormat(vc.format),
+							type: toTypeArray((signedClaims as Record<string, unknown>).type),
+							claims: signedClaims,
+							cryptographic_holder_binding: true,
+							batchId: vc.batchId,
+						};
+					} else {
+						// SD-JWT shaping
+						shaped.vct = signedClaims.vct;
+						shaped.claims = signedClaims;
+						shaped.cryptographic_holder_binding = true;
+						shaped.batchId = vc.batchId;
+					}
 				}
 				shapedCredentials.push(shaped);
 			} catch (e) {

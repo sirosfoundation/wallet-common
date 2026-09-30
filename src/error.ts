@@ -17,6 +17,7 @@ export enum CredentialParsingError {
 	JwtVcIssuerFail = "JwtVcIssuerFail",
 	FailFetchIssuerMetadata = "FailFetchIssuerMetadata",
 	FailSchemaIssuerMetadata = "FailSchemaIssuerMetadata",
+	InvalidVcdm2Credential = "InvalidVcdm2Credential",
 }
 
 export const CredentialParsingWarnings = new Set<CredentialParsingError>([
@@ -82,6 +83,12 @@ export enum CredentialVerificationError {
 	// MSO MDOC related
 	MsoMdocMissingDeviceKeyInfo = "MsoMdocMissingDeviceKeyInfo",
 	MsoMdocInvalidDeviceSignature = "MsoMdocInvalidDeviceSignature",
+
+	// W3C VCDM 2.0 Data Integrity related
+	MissingDataIntegrityProof = "MissingDataIntegrityProof",
+	UnsupportedCryptosuite = "UnsupportedCryptosuite",
+	CanonicalizationFailed = "CanonicalizationFailed",
+	UnresolvableJsonLdContext = "UnresolvableJsonLdContext",
 }
 
 export enum PublicKeyResolutionError {

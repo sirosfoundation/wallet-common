@@ -2,6 +2,32 @@ import { base64url } from 'jose';
 import { describe, expect, it } from 'vitest';
 import { VerifiableCredentialFormat } from '../types';
 import { detectCredentialFormat, detectSdJwtVariant, isMdoc, isJwtVcJson, isSdJwt } from './detectCredentialFormat';
+import { b64url as enc, bytesToB64Url, unsignedSdJwt, VCDM2_CONTEXT } from '../testFixtures/vcdm2TestSupport';
+
+const ISSUER = "did:example:issuer";
+
+const vcdm2Credential = {
+	"@context": [VCDM2_CONTEXT],
+	type: ["VerifiableCredential", "DiplomaCredential"],
+	issuer: "did:example:issuer",
+	credentialSubject: { id: "did:example:subject", degree: "BSc" },
+};
+
+function envelopedVcdm2(payload: object = vcdm2Credential): string {
+	return `${enc({ alg: "ES256", typ: "vc+jwt" })}.${enc(payload)}.sig`;
+}
+
+function vcdm11Jwt(): string {
+	return `${enc({ alg: "ES256" })}.${enc({ vc: { type: ["VerifiableCredential"] } })}.sig`;
+}
+
+const credentialBody = {
+	"@context": [VCDM2_CONTEXT],
+	type: ["VerifiableCredential", "StudentCardCredential"],
+	issuer: "https://mbob.issuer.dev.eduwallet.nl",
+	credentialSubject: { id: "did:example:subject", given_name: "Alice" },
+};
+
 
 describe('isMdoc', () => {
 	it('returns true for CBOR tag 0xA2 0x6A', () => {
@@ -112,5 +138,61 @@ describe('detectSdJwtVariant', () => {
 
 	it('returns VC_SDJWT when header cannot be decoded', () => {
 		expect(detectSdJwtVariant('!!!.payload.signature~disclosure~')).toBe(VerifiableCredentialFormat.VC_SDJWT);
+	});
+});
+
+describe("detectCredentialFormat with VCDM 2.0", () => {
+	it("detects an enveloped VCDM 2.0 credential rather than jwt_vc_json", () => {
+		expect(detectCredentialFormat(envelopedVcdm2())).toBe(VerifiableCredentialFormat.VCDM2_JOSE);
+	});
+
+	it("detects a Data Integrity credential", () => {
+		expect(detectCredentialFormat(JSON.stringify(vcdm2Credential))).toBe(VerifiableCredentialFormat.LDP_VC);
+	});
+
+	it("still reports a VCDM 1.1 JWT as jwt_vc_json", () => {
+		expect(detectCredentialFormat(vcdm11Jwt())).toBe(VerifiableCredentialFormat.JWT_VC_JSON);
+	});
+});
+
+describe("detectCredentialFormat", () => {
+	it("reports VCDM 2.0-as-SD-JWT rather than SD-JWT VC", () => {
+		expect(detectCredentialFormat(unsignedSdJwt(credentialBody)))
+			.toBe(VerifiableCredentialFormat.VCDM2_SDJWT);
+	});
+
+	it("still reports a credential carrying a vct as SD-JWT VC", () => {
+		expect(detectCredentialFormat(unsignedSdJwt({ vct: "https://example/vct" })))
+			.toBe(VerifiableCredentialFormat.VC_SDJWT);
+	});
+});
+
+describe("isMdoc recognises every accepted CBOR prefix", () => {
+	const prefixes: Array<[number, number]> = [
+		[0xa2, 0x6a], [0xb9, 0x00], [0xa3, 0x67], [0xa3, 0x66], [0xa3, 0x69],
+	];
+
+	it.each(prefixes)("accepts a document starting %s %s", (first, second) => {
+		const raw = bytesToB64Url(new Uint8Array([first, second, 0x00, 0x00]));
+		expect(isMdoc(raw)).toBe(true);
+		expect(detectCredentialFormat(raw)).toBe(VerifiableCredentialFormat.MSO_MDOC);
+	});
+
+	it("rejects a CBOR prefix it does not recognise", () => {
+		expect(isMdoc(bytesToB64Url(new Uint8Array([0xa3, 0x99, 0, 0])))).toBe(false);
+	});
+});
+
+describe("isMdoc defensive path", () => {
+	it("returns false rather than throwing when the input is not a string", () => {
+		expect(isMdoc(undefined as unknown as string)).toBe(false);
+		expect(isMdoc(null as unknown as string)).toBe(false);
+	});
+});
+
+describe("isMdoc defensive decoding", () => {
+	it("returns false when the input cannot be base64url-decoded at all", () => {
+		// A lone surrogate makes the decoder throw rather than return bytes.
+		expect(isMdoc("\uD800\uD800")).toBe(false);
 	});
 });
