@@ -1,23 +1,29 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-	coerceCredentialObject,
-	decodeCompactJws,
-	extractVcdm2ValidityInfo,
-	issuerDisplayName,
-	issuerIdentifier,
-	isVcdm2JoseHeaderType,
-	primaryCredentialType,
-	validatedIssuerDisplayName,
-	validatedIssuerIdentifier,
-	proofsOf,
-	toTypeArray,
+	toTypeArray, primaryCredentialType, issuerIdentifier, issuerDisplayName,
+	extractVcdm2ValidityInfo, isVcdm2Credential, decodeEnvelopedVcdm2,
+	splitSdJwt, decodeVcdm2SdJwt, proofsOf, coerceCredentialObject,
+	isVcdm2JoseHeaderType, decodeCompactJws,
+	validatedIssuerIdentifier, validatedIssuerDisplayName,
 } from "./vcdm2";
-import { canonicalizeJcs } from "./dataIntegrity/jcs";
-import { didKeyToJwk, multibaseDecode, multikeyToJwk } from "./dataIntegrity/multibase";
-import { isMdoc } from "./detectCredentialFormat";
-import { ParsingEngine } from "../ParsingEngine";
-import { CredentialParsingError } from "../error";
-import type { CredentialParser } from "../interfaces";
+import { b64url as enc, unsignedSdJwt, VCDM2_CONTEXT } from "../testFixtures/vcdm2TestSupport";
+
+const ISSUER = "did:example:issuer";
+
+const genericCredential = {
+	"@context": [VCDM2_CONTEXT],
+	type: ["VerifiableCredential"],
+	issuer: ISSUER,
+	credentialSubject: { id: "did:example:subject" },
+};
+
+const credentialBody = {
+	"@context": [VCDM2_CONTEXT],
+	type: ["VerifiableCredential", "StudentCardCredential"],
+	issuer: ISSUER,
+	credentialSubject: { id: "did:example:subject", given_name: "Alice" },
+};
+
 
 /**
  * Branch coverage for the smaller VCDM 2.0 helpers — the paths that only a
@@ -120,6 +126,91 @@ describe("extractVcdm2ValidityInfo", () => {
 	});
 });
 
+describe("isVcdm2Credential structural guards", () => {
+	it("rejects an array", () => {
+		expect(isVcdm2Credential([])).toBe(false);
+	});
+
+	it("rejects null and primitives", () => {
+		expect(isVcdm2Credential(null)).toBe(false);
+		expect(isVcdm2Credential("string")).toBe(false);
+	});
+
+	it("rejects a credential with no type", () => {
+		expect(isVcdm2Credential({
+			"@context": ["https://www.w3.org/ns/credentials/v2"],
+			issuer: "did:example:issuer",
+		})).toBe(false);
+	});
+
+	it("rejects a credential with no issuer", () => {
+		expect(isVcdm2Credential({
+			"@context": ["https://www.w3.org/ns/credentials/v2"],
+			type: ["VerifiableCredential"],
+		})).toBe(false);
+	});
+
+	it("rejects an empty or non-array @context", () => {
+		expect(isVcdm2Credential({ "@context": [], type: [], issuer: "x" })).toBe(false);
+		expect(isVcdm2Credential({ "@context": "v2", type: [], issuer: "x" })).toBe(false);
+	});
+});
+
+describe("decodeEnvelopedVcdm2", () => {
+	it("declines a JWS with no typ whose payload is not a VCDM 2.0 credential", () => {
+		expect(decodeEnvelopedVcdm2(`${enc({ alg: "ES256" })}.${enc({ sub: "x" })}.sig`)).toBeNull();
+	});
+
+	it("accepts a JWS with no typ whose payload is itself a VCDM 2.0 credential", () => {
+		const decoded = decodeEnvelopedVcdm2(`${enc({ alg: "ES256" })}.${enc(genericCredential)}.sig`);
+		expect(decoded).not.toBeNull();
+		expect(decoded?.payload.issuer).toBe("did:example:issuer");
+	});
+
+	it("declines a JWS whose payload wraps a VCDM 1.1 credential", () => {
+		expect(decodeEnvelopedVcdm2(`${enc({ alg: "ES256" })}.${enc({ vc: { type: ["X"] } })}.sig`)).toBeNull();
+	});
+});
+
+describe("splitSdJwt", () => {
+	it("splits an SD-JWT with no disclosures", () => {
+		const split = splitSdJwt("a.b.c~");
+		expect(split).toEqual({ issuerJwt: "a.b.c", rest: [] });
+	});
+
+	it("returns the disclosures when present", () => {
+		expect(splitSdJwt("a.b.c~d1~d2~")?.rest).toEqual(["d1", "d2"]);
+	});
+
+	it("declines a plain JWT with no tilde", () => {
+		expect(splitSdJwt("a.b.c")).toBeNull();
+	});
+
+	it("declines a non-string and a malformed issuer JWT", () => {
+		expect(splitSdJwt(42)).toBeNull();
+		expect(splitSdJwt("not-a-jwt~")).toBeNull();
+	});
+});
+
+describe("decodeVcdm2SdJwt", () => {
+	it("accepts a VCDM 2.0 credential in an SD-JWT", () => {
+		expect(decodeVcdm2SdJwt(unsignedSdJwt(credentialBody))).not.toBeNull();
+	});
+
+	it("leaves a real SD-JWT VC alone, because it carries a vct", () => {
+		expect(decodeVcdm2SdJwt(unsignedSdJwt({ vct: "https://example/vct", iss: ISSUER }))).toBeNull();
+	});
+
+	it("declines an SD-JWT whose payload is not a VCDM 2.0 credential", () => {
+		expect(decodeVcdm2SdJwt(unsignedSdJwt({ hello: "world" }))).toBeNull();
+	});
+
+	it("declines a plain JWT and undecodable input", () => {
+		expect(decodeVcdm2SdJwt(`${enc({ alg: "ES256" })}.${enc(credentialBody)}.sig`)).toBeNull();
+		expect(decodeVcdm2SdJwt("%%%.%%%.sig~")).toBeNull();
+	});
+});
+
 describe("proofsOf", () => {
 	const base = { "@context": [], type: [], issuer: "x", credentialSubject: {} } as any;
 
@@ -190,114 +281,6 @@ describe("decodeCompactJws", () => {
 
 	it("returns null when a segment is not valid base64url JSON", () => {
 		expect(decodeCompactJws("%%%.%%%.sig")).toBeNull();
-	});
-});
-
-describe("canonicalizeJcs rejects non-JSON types", () => {
-	it("throws for a bigint", () => {
-		expect(() => canonicalizeJcs({ a: 1n })).toThrow(/not serializable/);
-	});
-
-	it("throws for a function", () => {
-		expect(() => canonicalizeJcs({ a: () => 1 })).toThrow(/not serializable/);
-	});
-
-	it("throws for a symbol", () => {
-		expect(() => canonicalizeJcs(Symbol("s"))).toThrow(/not serializable/);
-	});
-});
-
-describe("multibase and multikey edge cases", () => {
-	it("rejects a value that is too short to carry a prefix", () => {
-		expect(() => multibaseDecode("z")).toThrow(/too short/);
-		expect(() => multibaseDecode(42 as unknown as string)).toThrow(/too short/);
-	});
-
-	it("rejects a multikey whose EC point is neither compressed nor uncompressed", () => {
-		// 0x80 0x24 is the P-256 prefix; 0x05 is not a valid point marker.
-		expect(() => multikeyToJwk(new Uint8Array([0x80, 0x24, 0x05, 1, 2, 3])))
-			.toThrow(/not a compressed EC point/);
-	});
-
-	it("decompresses a P-384 point", async () => {
-		const keyPair = await globalThis.crypto.subtle.generateKey(
-			{ name: "ECDSA", namedCurve: "P-384" }, true, ["sign", "verify"],
-		);
-		const jwk = await globalThis.crypto.subtle.exportKey("jwk", keyPair.publicKey);
-
-		const dec = (v: string) => {
-			const padded = v + "=".repeat((4 - (v.length % 4)) % 4);
-			const binary = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
-			return Uint8Array.from(binary, (c) => c.charCodeAt(0));
-		};
-		const x = dec(jwk.x as string);
-		const y = dec(jwk.y as string);
-		const compressed = new Uint8Array([(y[y.length - 1] & 1) === 1 ? 0x03 : 0x02, ...x]);
-
-		const decoded = multikeyToJwk(new Uint8Array([0x81, 0x24, ...compressed]));
-		expect(decoded.crv).toBe("P-384");
-		expect(decoded.x).toBe(jwk.x);
-		expect(decoded.y).toBe(jwk.y);
-	});
-
-	it("rejects a did:key identifier that is not did:key", () => {
-		expect(() => didKeyToJwk("did:example:123")).toThrow(/unexpected identifier/);
-	});
-});
-
-describe("isMdoc", () => {
-	it("returns false when the input cannot be base64url-decoded at all", () => {
-		// A lone surrogate makes the decoder throw rather than return bytes.
-		expect(isMdoc("\uD800\uD800")).toBe(false);
-	});
-});
-
-describe("ParsingEngine dispatch", () => {
-	it("moves past a parser that declines the format", async () => {
-		const declining: CredentialParser = {
-			parse: vi.fn(async () => ({ success: false as const, error: CredentialParsingError.UnsupportedFormat })),
-		};
-		const accepting: CredentialParser = {
-			parse: vi.fn(async () => ({ success: true as const, value: { marker: "handled" } as any })),
-		};
-
-		const engine = ParsingEngine();
-		engine.register(declining);
-		engine.register(accepting);
-
-		const result = await engine.parse({ rawCredential: "anything" });
-		expect(result.success).toBe(true);
-		expect(declining.parse).toHaveBeenCalled();
-		expect(accepting.parse).toHaveBeenCalled();
-	});
-
-	it("returns a non-UnsupportedFormat failure immediately", async () => {
-		const failing: CredentialParser = {
-			parse: vi.fn(async () => ({ success: false as const, error: CredentialParsingError.CouldNotParse })),
-		};
-		const later: CredentialParser = { parse: vi.fn() };
-
-		const engine = ParsingEngine();
-		engine.register(failing);
-		engine.register(later);
-
-		const result = await engine.parse({ rawCredential: "anything" });
-		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialParsingError.CouldNotParse);
-		expect(later.parse).not.toHaveBeenCalled();
-	});
-
-	it("reports UnsupportedFormat when every parser declines", async () => {
-		const declining: CredentialParser = {
-			parse: async () => ({ success: false as const, error: CredentialParsingError.UnsupportedFormat }),
-		};
-
-		const engine = ParsingEngine();
-		engine.register(declining);
-
-		const result = await engine.parse({ rawCredential: "anything" });
-		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialParsingError.UnsupportedFormat);
 	});
 });
 

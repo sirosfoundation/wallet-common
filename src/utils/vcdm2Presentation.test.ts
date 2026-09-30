@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { b64url as enc, unsignedSdJwt } from "../testFixtures/vcdm2TestSupport";
+
+const credentialBody = {
+	"@context": ["https://www.w3.org/ns/credentials/v2"],
+	type: ["VerifiableCredential", "StudentCardCredential"],
+	issuer: "https://mbob.issuer.dev.eduwallet.nl",
+	credentialSubject: { id: "did:example:subject", given_name: "Alice" },
+};
 import {
 	ENVELOPED_VC_JWT_MEDIA_TYPE,
+	ENVELOPED_VC_SDJWT_MEDIA_TYPE,
+	envelopedMediaTypeFor,
 	buildVcdm2Presentation,
 	holderIdFromCredential,
 	holderJwkFromCredential,
@@ -171,5 +181,21 @@ describe("holderIdFromCredential", () => {
 
 	it("returns undefined when the subject id is not a string", () => {
 		expect(holderIdFromCredential({ ...ldpCredential, credentialSubject: { id: 42 } })).toBeUndefined();
+	});
+});
+
+describe("presentation media type follows the credential", () => {
+	it("names application/vc+sd-jwt for an SD-JWT credential", () => {
+		const raw = unsignedSdJwt(credentialBody);
+		expect(envelopedMediaTypeFor(raw)).toBe("application/vc+sd-jwt");
+		const wrapped = wrapCredentialForPresentation(raw) as Record<string, unknown>;
+		expect(wrapped.id).toBe(`data:application/vc+sd-jwt,${raw}`);
+		expect(wrapped.type).toBe("EnvelopedVerifiableCredential");
+	});
+
+	it("names application/vc+jwt for an enveloped JOSE credential", () => {
+		const raw = `${enc({ alg: "ES256", typ: "vc+jwt" })}.${enc(credentialBody)}.sig`;
+		expect(envelopedMediaTypeFor(raw)).toBe("application/vc+jwt");
+		expect((wrapCredentialForPresentation(raw) as any).id).toBe(`data:application/vc+jwt,${raw}`);
 	});
 });

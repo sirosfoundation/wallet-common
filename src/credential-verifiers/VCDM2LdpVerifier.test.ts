@@ -1,42 +1,30 @@
 import { describe, expect, it, vi } from "vitest";
 import * as jose from "jose";
-import { VCDM2JoseVerifier } from "./VCDM2JoseVerifier";
 import { VCDM2LdpVerifier } from "./VCDM2LdpVerifier";
-import { VCDM2SdJwtVerifier } from "./VCDM2SdJwtVerifier";
-import { resolveVcdm2IssuerPublicKey } from "./vcdm2IssuerKey";
 import { CredentialVerificationError } from "../error";
 import { canonicalizeJcs } from "../utils/dataIntegrity/jcs";
-import type { Context, HttpClient, PublicKeyResolverEngineI } from "../interfaces";
+import {
+	VCDM2_CONTEXT,
+	b64ToBytes,
+	bytesToB64Url,
+	contextHttpClient,
+	makeContext,
+	makeResolver,
+	offlineHttpClient,
+	subtle,
+} from "../testFixtures/vcdm2TestSupport";
+import type { Context, PublicKeyResolverEngineI } from "../interfaces";
 
-const subtle = globalThis.crypto.subtle;
+const ISSUER = "https://issuer.example";
 
-const httpClient: HttpClient = {
-	async get() { return { status: 404, headers: {}, data: null }; },
-	async post() { return { status: 404, headers: {}, data: null }; },
+const credential = {
+	"@context": [VCDM2_CONTEXT],
+	type: ["VerifiableCredential"],
+	issuer: "did:example:issuer",
+	credentialSubject: { id: "did:example:subject", name: "Alice" },
 };
 
-function makeContext(overrides: Partial<Context> = {}): Context {
-	return {
-		clockTolerance: 60,
-		lang: "en-US",
-		subtle,
-		delegateTrustToBackend: true,
-		trustedCertificates: [],
-		...overrides,
-	} as Context;
-}
-
-/** A resolver engine that answers with `jwk` for any identifier, or fails. */
-function makeResolver(jwk: jose.JWK | null): PublicKeyResolverEngineI {
-	return {
-		register: vi.fn(),
-		resolve: vi.fn(async () => (
-			jwk
-				? { success: true as const, value: { jwk } }
-				: { success: false as const, error: "CannotResolvePublicKey" as any }
-		)),
-	} as unknown as PublicKeyResolverEngineI;
-}
+const httpClient = offlineHttpClient;
 
 const credentialBody = {
 	"@context": ["https://www.w3.org/ns/credentials/v2"],
@@ -55,177 +43,6 @@ async function signEnveloped(extras: Record<string, unknown> = {}) {
 
 	return { jwt, publicJwk, privateKey };
 }
-
-describe("VCDM2JoseVerifier", () => {
-	it("verifies a correctly signed enveloped credential", async () => {
-		const { jwt, publicJwk } = await signEnveloped();
-		const verifier = VCDM2JoseVerifier({
-			context: makeContext(),
-			pkResolverEngine: makeResolver(publicJwk),
-			httpClient,
-		});
-
-		const result = await verifier.verify({ rawCredential: jwt, opts: {} });
-		expect(result.success).toBe(true);
-	});
-
-	it("returns the holder key from cnf.jwk when the issuer bound one", async () => {
-		const holderJwk = { kty: "EC", crv: "P-256", x: "aa", y: "bb" };
-		const { jwt, publicJwk } = await signEnveloped({ cnf: { jwk: holderJwk } });
-		const verifier = VCDM2JoseVerifier({
-			context: makeContext(),
-			pkResolverEngine: makeResolver(publicJwk),
-			httpClient,
-		});
-
-		const result = await verifier.verify({ rawCredential: jwt, opts: {} });
-		expect(result.success).toBe(true);
-		if (result.success) expect(result.value.holderPublicKey).toEqual(holderJwk);
-	});
-
-	it("returns an empty holder key when there is no cnf binding", async () => {
-		const { jwt, publicJwk } = await signEnveloped();
-		const verifier = VCDM2JoseVerifier({
-			context: makeContext(),
-			pkResolverEngine: makeResolver(publicJwk),
-			httpClient,
-		});
-
-		const result = await verifier.verify({ rawCredential: jwt, opts: {} });
-		expect(result.success).toBe(true);
-		if (result.success) expect(result.value.holderPublicKey).toEqual({});
-	});
-
-	it("does not start on a credential that is not an enveloped VCDM 2.0 one", async () => {
-		const verifier = VCDM2JoseVerifier({
-			context: makeContext(),
-			pkResolverEngine: makeResolver(null),
-			httpClient,
-		});
-
-		const result = await verifier.verify({ rawCredential: "not-a-jwt", opts: {} });
-		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.VerificationProcessNotStarted);
-	});
-
-	it("reports an invalid signature when the key does not match", async () => {
-		const { jwt } = await signEnveloped();
-		const other = await jose.generateKeyPair("ES256", { extractable: true });
-		const verifier = VCDM2JoseVerifier({
-			context: makeContext(),
-			pkResolverEngine: makeResolver(await jose.exportJWK(other.publicKey)),
-			httpClient,
-		});
-
-		const result = await verifier.verify({ rawCredential: jwt, opts: {} });
-		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.InvalidSignature);
-	});
-
-	it("reports an expired credential distinctly from a bad signature", async () => {
-		const { publicKey, privateKey } = await jose.generateKeyPair("ES256", { extractable: true });
-		const jwt = await new jose.SignJWT({ ...credentialBody, exp: 1000 })
-			.setProtectedHeader({ alg: "ES256", typ: "vc+jwt" })
-			.sign(privateKey);
-
-		const verifier = VCDM2JoseVerifier({
-			context: makeContext({ clockTolerance: 0 }),
-			pkResolverEngine: makeResolver(await jose.exportJWK(publicKey)),
-			httpClient,
-		});
-
-		const result = await verifier.verify({ rawCredential: jwt, opts: {} });
-		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.ExpiredCredential);
-	});
-
-	it("reports when the issuer key cannot be resolved", async () => {
-		const { jwt } = await signEnveloped();
-		const verifier = VCDM2JoseVerifier({
-			context: makeContext(),
-			pkResolverEngine: makeResolver(null),
-			httpClient,
-		});
-
-		const result = await verifier.verify({ rawCredential: jwt, opts: {} });
-		expect(result.success).toBe(false);
-		// An issuer object without an `id` is not a valid VCDM 2.0 credential,
-		// so schema validation rejects it before key resolution is attempted.
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.CannotResolveIssuerPublicKey);
-	});
-
-	it("reports when the resolved key cannot be imported", async () => {
-		const { jwt } = await signEnveloped();
-		const verifier = VCDM2JoseVerifier({
-			context: makeContext(),
-			pkResolverEngine: makeResolver({ kty: "EC", crv: "P-256", x: "!!", y: "!!" } as jose.JWK),
-			httpClient,
-		});
-
-		const result = await verifier.verify({ rawCredential: jwt, opts: {} });
-		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.CannotImportIssuerPublicKey);
-	});
-
-	it("resolves by kid when the header names one", async () => {
-		const { publicKey, privateKey } = await jose.generateKeyPair("ES256", { extractable: true });
-		const jwt = await new jose.SignJWT(credentialBody)
-			.setProtectedHeader({ alg: "ES256", typ: "vc+jwt", kid: "did:example:issuer#key-1" })
-			.sign(privateKey);
-
-		const resolver = makeResolver(await jose.exportJWK(publicKey));
-		const verifier = VCDM2JoseVerifier({ context: makeContext(), pkResolverEngine: resolver, httpClient });
-
-		const result = await verifier.verify({ rawCredential: jwt, opts: {} });
-		expect(result.success).toBe(true);
-		expect(resolver.resolve).toHaveBeenCalledWith({ identifier: "did:example:issuer#key-1" });
-	});
-
-	it("rejects a malformed issuer before attempting key resolution", async () => {
-		const { privateKey } = await jose.generateKeyPair("ES256", { extractable: true });
-		const jwt = await new jose.SignJWT({
-			"@context": ["https://www.w3.org/ns/credentials/v2"],
-			type: ["VerifiableCredential"],
-			issuer: { name: "no id here" },
-			credentialSubject: {},
-		})
-			.setProtectedHeader({ alg: "ES256", typ: "vc+jwt" })
-			.sign(privateKey);
-
-		const verifier = VCDM2JoseVerifier({
-			context: makeContext(),
-			pkResolverEngine: makeResolver(null),
-			httpClient,
-		});
-
-		const result = await verifier.verify({ rawCredential: jwt, opts: {} });
-		expect(result.success).toBe(false);
-		// An issuer object without an `id` is not a valid VCDM 2.0 credential,
-		// so schema validation rejects it before key resolution is attempted.
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.InvalidFormat);
-	});
-
-	it("fails when the header has no alg", async () => {
-		// Hand-built so the header genuinely lacks `alg`.
-		const enc = (value: object) => {
-			const bytes = new TextEncoder().encode(JSON.stringify(value));
-			let binary = "";
-			for (const b of bytes) binary += String.fromCharCode(b);
-			return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-		};
-		const raw = `${enc({ typ: "vc+jwt" })}.${enc(credentialBody)}.sig`;
-
-		const verifier = VCDM2JoseVerifier({
-			context: makeContext(),
-			pkResolverEngine: makeResolver(null),
-			httpClient,
-		});
-
-		const result = await verifier.verify({ rawCredential: raw, opts: {} });
-		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.InvalidFormat);
-	});
-});
 
 describe("VCDM2LdpVerifier", () => {
 	/** Sign `credentialBase` with ecdsa-jcs-2019, which needs no JSON-LD contexts. */
@@ -470,92 +287,6 @@ describe("VCDM2LdpVerifier", () => {
 	});
 });
 
-/**
- * decodeEnvelopedVcdm2 and decodeVcdm2SdJwt accept a token on its `typ` header
- * or a three-member payload shape, neither of which is the VCDM 2.0 schema. A
- * validly signed token that clears those but violates the schema must not be
- * reported as verified. Raised in review by Copilot.
- */
-describe("VCDM2 verifiers validate the payload, not just the envelope", () => {
-	it("refuses a signed vc+jwt whose payload is not a VCDM 2.0 credential", async () => {
-		const { privateKey, publicKey } = await jose.generateKeyPair("ES256", { extractable: true });
-
-		// Correct typ, correct signature, but no credentialSubject.
-		const jwt = await new jose.SignJWT({
-			"@context": ["https://www.w3.org/ns/credentials/v2"],
-			type: ["VerifiableCredential"],
-			issuer: "did:example:issuer",
-		})
-			.setProtectedHeader({ alg: "ES256", typ: "vc+jwt" })
-			.sign(privateKey);
-
-		const verifier = VCDM2JoseVerifier({
-			context: makeContext(),
-			pkResolverEngine: makeResolver(await jose.exportJWK(publicKey)),
-			httpClient,
-		});
-
-		const result = await verifier.verify({ rawCredential: jwt, opts: {} });
-		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.InvalidFormat);
-	});
-
-	it("refuses a signed vc+sd-jwt whose payload is not a VCDM 2.0 credential", async () => {
-		const { privateKey, publicKey } = await jose.generateKeyPair("ES256", { extractable: true });
-
-		const issuerJwt = await new jose.SignJWT({
-			"@context": ["https://www.w3.org/ns/credentials/v2"],
-			type: ["VerifiableCredential"],
-			issuer: "did:example:issuer",
-		})
-			.setProtectedHeader({ alg: "ES256", typ: "vc+sd-jwt" })
-			.sign(privateKey);
-
-		const verifier = VCDM2SdJwtVerifier({
-			context: makeContext(),
-			pkResolverEngine: makeResolver(await jose.exportJWK(publicKey)),
-			httpClient,
-		});
-
-		const result = await verifier.verify({ rawCredential: `${issuerJwt}~`, opts: {} });
-		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.InvalidFormat);
-	});
-});
-
-describe("resolveVcdm2IssuerPublicKey", () => {
-	it("refuses an x5c chain when local trust has no anchors configured", async () => {
-		// Evaluating trust locally with nothing to trust against cannot
-		// establish anything; skipping the check would accept any issuer that
-		// presents a chain. Raised in review by @smncd.
-		const result = await resolveVcdm2IssuerPublicKey(
-			{
-				context: makeContext({ delegateTrustToBackend: false, trustedCertificates: [] }),
-				pkResolverEngine: makeResolver(null),
-			},
-			{ alg: "ES256", x5c: ["Zm9v"] },
-			{},
-		);
-
-		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.NotTrustedIssuer);
-	});
-
-	it("reports when there is no identifier to resolve at all", async () => {
-		// Unreachable through the verifiers now that the schema runs first --
-		// a valid credential always yields an issuer identifier -- so the
-		// guard is exercised directly.
-		const result = await resolveVcdm2IssuerPublicKey(
-			{ context: makeContext(), pkResolverEngine: makeResolver(null) },
-			{ alg: "ES256" },
-			{},
-		);
-
-		expect(result.success).toBe(false);
-		if (!result.success) expect(result.error).toBe(CredentialVerificationError.CannotResolveIssuerPublicKey);
-	});
-});
-
 describe("VCDM2LdpVerifier cryptosuite gating", () => {
 	it("reports an unsupported suite rather than an unresolvable key", async () => {
 		// resolveCryptosuite reports whatever the proof claims, so before the
@@ -585,5 +316,105 @@ describe("VCDM2LdpVerifier cryptosuite gating", () => {
 		const result = await verifier.verify({ rawCredential: JSON.stringify(credential), opts: {} });
 		expect(result.success).toBe(false);
 		if (!result.success) expect(result.error).toBe(CredentialVerificationError.UnsupportedCryptosuite);
+	});
+});
+
+describe("VCDM2LdpVerifier error mapping", () => {
+	const proofBase = {
+		type: "DataIntegrityProof",
+		cryptosuite: "ecdsa-rdfc-2019",
+		created: "2026-01-01T00:00:00Z",
+		verificationMethod: "did:example:issuer#key-1",
+		proofPurpose: "assertionMethod",
+		proofValue: "uAAAA",
+	};
+
+	function ldpVerifier(httpClient: HttpClient) {
+		return VCDM2LdpVerifier({
+			context: makeContext(),
+			pkResolverEngine: {
+				register: vi.fn(),
+				resolve: vi.fn(async () => ({
+					success: true as const,
+					value: { jwk: { kty: "EC", crv: "P-256", x: "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU", y: "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0" } as jose.JWK },
+				})),
+			} as unknown as PublicKeyResolverEngineI,
+			httpClient,
+		});
+	}
+
+	it("maps a refused JSON-LD context to UnresolvableJsonLdContext", async () => {
+		// The credential references a context outside the loader's allowlist,
+		// so canonicalization cannot proceed.
+		const credential = {
+			"@context": ["https://www.w3.org/ns/credentials/v2", "https://not-allowed.example/v1"],
+			type: ["VerifiableCredential"],
+			issuer: ISSUER,
+			credentialSubject: { id: "did:example:subject" },
+			proof: proofBase,
+		};
+
+		const httpClient: HttpClient = {
+			get: vi.fn(async () => ({ status: 200, headers: {}, data: { "@context": {} } })),
+			post: vi.fn(),
+		} as unknown as HttpClient;
+
+		const result = await ldpVerifier(httpClient).verify({ rawCredential: credential, opts: {} });
+		expect(result.success).toBe(false);
+		if (!result.success) expect(result.error).toBe(CredentialVerificationError.UnresolvableJsonLdContext);
+	});
+
+	it("maps a context that cannot be fetched to UnresolvableJsonLdContext", async () => {
+		const credential = {
+			"@context": ["https://www.w3.org/ns/credentials/v2"],
+			type: ["VerifiableCredential"],
+			issuer: ISSUER,
+			credentialSubject: { id: "did:example:subject" },
+			proof: proofBase,
+		};
+
+		const httpClient: HttpClient = {
+			get: vi.fn(async () => ({ status: 500, headers: {}, data: null })),
+			post: vi.fn(),
+		} as unknown as HttpClient;
+
+		const result = await ldpVerifier(httpClient).verify({ rawCredential: credential, opts: {} });
+		expect(result.success).toBe(false);
+		if (!result.success) expect(result.error).toBe(CredentialVerificationError.UnresolvableJsonLdContext);
+	});
+});
+
+describe("VCDM2LdpVerifier canonicalization failure mapping", () => {
+	it("maps a canonicalization failure to CanonicalizationFailed", async () => {
+		const publicJwk = await subtle.exportKey(
+			"jwk",
+			(await subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])).publicKey,
+		);
+
+		const verifier = VCDM2LdpVerifier({
+			context: { clockTolerance: 60, lang: "en-US", subtle } as Context,
+			pkResolverEngine: {
+				register: vi.fn(),
+				resolve: vi.fn(async () => ({ success: true as const, value: { jwk: publicJwk as jose.JWK } })),
+			} as unknown as PublicKeyResolverEngineI,
+			httpClient: contextHttpClient({ "@context": {} }),
+		});
+
+		const result = await verifier.verify({
+			rawCredential: {
+				...credential,
+				proof: {
+					type: "DataIntegrityProof",
+					cryptosuite: "ecdsa-rdfc-2019",
+					verificationMethod: "did:example:issuer#key-1",
+					proofPurpose: "assertionMethod",
+					proofValue: "uAAAA",
+				},
+			},
+			opts: {},
+		});
+
+		expect(result.success).toBe(false);
+		if (!result.success) expect(result.error).toBe(CredentialVerificationError.CanonicalizationFailed);
 	});
 });
